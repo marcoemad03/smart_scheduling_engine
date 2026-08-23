@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:reception_scheduler/core/app_exports.dart';
+import 'package:uuid/uuid.dart';
 
 class ShiftTemplate {
   final String templateId;
@@ -18,8 +18,11 @@ class ShiftTemplate {
     required this.durationMinutes,
     required this.isNightShift,
     required this.colorValue,
-    this.isActive = true,
+    required this.isActive,
   });
+
+  @override
+  String toString() => name;
 }
 
 class ShiftTemplatePage extends ConsumerStatefulWidget {
@@ -34,26 +37,29 @@ class _ShiftTemplatePageState extends ConsumerState<ShiftTemplatePage> {
     ShiftTemplate(
       templateId: 'day',
       name: 'Day Shift',
-      startMinute: 480, // 08:00
-      durationMinutes: 420, // 7 hours
+      startMinute: 480,
+      durationMinutes: 420,
       isNightShift: false,
       colorValue: Colors.blue.value,
+      isActive: true,
     ),
     ShiftTemplate(
       templateId: 'evening',
       name: 'Evening Shift',
-      startMinute: 900, // 15:00
-      durationMinutes: 420, // 7 hours
+      startMinute: 900,
+      durationMinutes: 420,
       isNightShift: false,
       colorValue: Colors.orange.value,
+      isActive: true,
     ),
     ShiftTemplate(
       templateId: 'night',
       name: 'Night Shift',
-      startMinute: 1320, // 22:00
-      durationMinutes: 600, // 10 hours (until 08:00 next day)
+      startMinute: 1320,
+      durationMinutes: 600,
       isNightShift: true,
       colorValue: Colors.purple.value,
+      isActive: true,
     ),
   ];
 
@@ -76,8 +82,8 @@ class _ShiftTemplatePageState extends ConsumerState<ShiftTemplatePage> {
                 backgroundColor: Color(template.colorValue),
                 child: Text('${template.startMinute ~/ 60}:${(template.startMinute % 60).toString().padLeft(2, '0')}'),
               ),
-              title: Text(template.name),
-              subtitle: Text('${ShiftTemplate.toString()} • Duration: ${template.durationMinutes ~/ 60}h'),
+              title: Text(template.toString()),
+              subtitle: Text('Duration: ${template.durationMinutes ~/ 60}h'),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -128,25 +134,39 @@ class _ShiftTemplatePageState extends ConsumerState<ShiftTemplatePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(template == null ? 'Add Shift Template' : 'Edit Shift Template'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+        content: SizedBox(
+          width: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: startController,
+                  decoration: const InputDecoration(
+                    labelText: 'Start Time (HH:MM)',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.access_time_outlined),
+                  ),
+                  readOnly: true,
+                  onTap: () => _selectTime(context, startController),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: durationController,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration (hours)',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: startController,
-              decoration: const InputDecoration(labelText: 'Start Time (HH:MM)'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: durationController,
-              decoration: const InputDecoration(labelText: 'Duration (hours)'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -183,8 +203,24 @@ class _ShiftTemplatePageState extends ConsumerState<ShiftTemplatePage> {
     );
   }
 
+  Future<void> _selectTime(BuildContext context, TextEditingController controller) async {
+    final parts = controller.text.split(':');
+    final result = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.tryParse(parts[0]) ?? 8,
+        minute: int.tryParse(parts[1]) ?? 0,
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        controller.text = '${result.hour.toString().padLeft(2, '0')}:${result.minute.toString().padLeft(2, '0')}';
+      });
+    }
+  }
+
   bool _isNightShift(int startMinute, int durationMinutes) {
     final endMinute = startMinute + durationMinutes;
-    return endMinute > 1440; // crosses midnight
+    return endMinute > 1440;
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../domain/usecases/auth_usecases.dart';
-import '../../core/errors/failures.dart';
+import '../../domain/entities/user.dart';
+import '../../domain/repositories/auth_repository.dart';
 
 class AuthViewModel extends StateNotifier<AsyncValue<UserDomain?>> {
   final SignInUseCase signInUseCase;
@@ -40,20 +40,3 @@ class AuthViewModel extends StateNotifier<AsyncValue<UserDomain?>> {
     }
   }
 }
-
-final authViewModelProvider = StateNotifierProvider<AuthViewModel, AsyncValue<UserDomain?>>(
-  (ref) => AuthViewModel(
-    signInUseCase: ref.watch(signInUseCaseProvider),
-    signOutUseCase: ref.watch(signOutUseCaseProvider),
-    getCurrentUserUseCase: ref.watch(getCurrentUserUseCaseProvider),
-  ),
-);
-
-final authStateProvider = StreamProvider<UserDomain?>(
-  (ref) => ref.watch(authRepositoryProvider).authStateChanges(),
-);
-
-final currentuserProvider = Provider<UserDomain?>((ref) {
-  final asyncValue = ref.watch(authViewModelProvider);
-  return asyncValue.valueOrNull;
-});

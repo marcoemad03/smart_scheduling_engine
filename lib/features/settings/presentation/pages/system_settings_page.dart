@@ -349,3 +349,4 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 }
+

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:reception_workforce_scheduler/core/providers.dart';
+import 'package:reception_workforce_scheduler/core/utils/validators.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -24,7 +26,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
+    final authState = ref.watch(authViewModelProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -95,23 +97,49 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      authState.maybeWhen(
+                      authState.when(
                         loading: () => const SizedBox(
                           height: 48,
                           child: Center(child: CircularProgressIndicator()),
                         ),
-                        orElse: () => FilledButton(
-                          onPressed: () {
-                            if (_formKey.currentState?.validate() ?? false) {
-                              ref.read(authViewModelProvider.notifier).signIn(
-                                email: _emailController.text.trim(),
-                                password: _passwordController.text,
-                              );
-                            }
-                          },
-                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                          child: const Text('Sign In'),
+                        error: (error, _) => Column(
+                          children: [
+                            Text(
+                              error.toString().replaceAll('Exception: ', ''),
+                              style: TextStyle(color: Theme.of(context).colorScheme.error),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 48,
+                              child: FilledButton(
+                                onPressed: _attemptSignIn,
+                                child: const Text('Try Again'),
+                              ),
+                            ),
+                          ],
                         ),
+                        data: (user) {
+                          if (user != null) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              // Navigate based on role
+                              if (user.role.toString().contains('admin')) {
+                                context.go('/admin');
+                              } else {
+                                context.go('/employee');
+                              }
+                            });
+                          }
+                          return SizedBox(
+                            height: 48,
+                            child: FilledButton(
+                              onPressed: () {
+                                _attemptSignIn();
+                              },
+                              child: const Text('Sign In'),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -122,5 +150,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       ),
     );
+  }
+
+  void _attemptSignIn() {
+    if (_formKey.currentState?.validate() ?? false) {
+      ref.read(authViewModelProvider.notifier).signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    }
   }
 }

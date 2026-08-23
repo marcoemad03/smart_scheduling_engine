@@ -1,4 +1,4 @@
-import 'dart:math';
+import 'package:flutter/material.dart';
 
 class DateTimeUtils {
   // Calculate week boundaries (Monday to Sunday)
@@ -18,11 +18,6 @@ class DateTimeUtils {
         date.isAfter(start) && date.isBefore(end);
   }
 
-  // Calculate gap between two dates in minutes
-  static int gapInMinutes(DateTime start, DateTime end) {
-    return end.difference(start).inMinutes;
-  }
-
   // Format time without date
   static String formatTime(DateTime date) {
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
@@ -30,7 +25,7 @@ class DateTimeUtils {
 
   // Generate unique ID
   static String generateId() {
-    return '${DateTime.now().millisecondsSinceEpoch}${Random().nextInt(9999)}';
+    return DateTime.now().millisecondsSinceEpoch.toString();
   }
 
   // Days in a week as integers (Mon=1, Sun=7)
@@ -58,3 +53,4 @@ class DateTimeUtils {
     return {'hours': hours, 'minutes': mins};
   }
 }
+

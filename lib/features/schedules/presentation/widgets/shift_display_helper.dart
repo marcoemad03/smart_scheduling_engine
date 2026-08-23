@@ -1,6 +1,40 @@
 import 'package:flutter/material.dart';
-import '../../../../../domain/entities/schedule_entities.dart';
-import '../../../../../core/constants/enums.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:syncfusion_flutter_calendar/calendar.dart';
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
+
+class ScheduleTimeline extends ConsumerWidget {
+  final DateTime weekStart;
+
+  const ScheduleTimeline({Key? key, required this.weekStart}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Placeholder - would normally fetch schedule data
+    final appointments = <Appointment>[
+      Appointment(
+        startTime: DateTime.now().add(const Duration(hours: 1)),
+        endTime: DateTime.now().add(const Duration(hours: 8)),
+        subject: 'Emergency - Night Shift',
+        color: Colors.blue,
+        isAllDay: false,
+      ),
+    ];
+
+    return SfCalendar(
+      view: CalendarView.week,
+      dataSource: _DataSource(appointments),
+      firstDayOfWeek: 1,
+    );
+  }
+}
+
+class _DataSource extends CalendarDataSource {
+  _DataSource(List<Appointment> appointments) {
+    this.appointments = appointments;
+  }
+}
 
 class ShiftDisplayHelper {
   static String formatShiftTime(ScheduleAssignment assignment) {
@@ -35,39 +69,13 @@ class ShiftDisplayHelper {
     return Icons.wb_sunny_outlined;
   }
 
-  static List<TimeSegment> splitOvernightShift(ScheduleAssignment assignment) {
-    if (!assignment.isOvernight) {
-      return [TimeSegment(start: assignment.startDateTime, end: assignment.endDateTime)];
-    }
-
-    final midnight = DateTime(
-      assignment.endDateTime.year,
-      assignment.endDateTime.month,
-      assignment.endDateTime.day,
-    );
-
-    return [
-      TimeSegment(start: assignment.startDateTime, end: midnight),
-      TimeSegment(start: midnight, end: assignment.endDateTime),
-    ];
-  }
-
   static String getShiftDurationDisplay(ScheduleAssignment assignment) {
     final duration = assignment.duration;
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
-    
+
     if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
     if (hours > 0) return '${hours}h';
     return '${minutes}m';
   }
-}
-
-class TimeSegment {
-  final DateTime start;
-  final DateTime end;
-
-  TimeSegment({required this.start, required this.end});
-
-  Duration get duration => end.difference(start);
 }

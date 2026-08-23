@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 
 class ScheduleAssignmentModel {
   final String assignmentId;

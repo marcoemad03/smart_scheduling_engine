@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:syncfusion_flutter_calendar/calendar.dart';
-import '../../../../../../app/routes.dart';
+import 'package:go_router/go_router.dart';
 
 class EmployeeDashboardPage extends ConsumerWidget {
   const EmployeeDashboardPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final today = DateTime.now();
-    final weekStart = DateTime(today.year, today.month, today.day - today.weekday + 1);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('My Dashboard')),
+      appBar: AppBar(title: const Text('Employee Dashboard')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -24,45 +20,11 @@ class EmployeeDashboardPage extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${today.toLocal().toString().split(' ')[0]}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 32),
-            _buildUpcomingShifts(context),
             const SizedBox(height: 32),
             _buildQuickActions(context),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildUpcomingShifts(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Upcoming Shifts',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          height: 250,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Center(
-            child: Text('No upcoming shifts'),
-          ),
-        ),
-      ],
     );
   }
 

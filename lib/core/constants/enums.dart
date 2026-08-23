@@ -23,3 +23,4 @@ enum ConflictType {
 }
 
 enum TimeSlotType { morning, afternoon, night }
+

@@ -310,3 +310,4 @@ class AvailabilityBlock {
 class UuidGenerator {
   String generate() => DateTime.now().millisecondsSinceEpoch.toString();
 }
+

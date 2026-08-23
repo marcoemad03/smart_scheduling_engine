@@ -27,3 +27,4 @@ class PermissionException extends AppException {
   PermissionException(String message)
       : super(message, code: 'permission_denied');
 }
+

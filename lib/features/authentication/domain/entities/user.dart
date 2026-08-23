@@ -1,4 +1,5 @@
-import '../../core/constants/enums.dart';
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserDomain {
   final String id;

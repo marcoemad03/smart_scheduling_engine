@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'schedule_assignment_model.dart';
 
 class WeeklyScheduleModel {
@@ -35,9 +37,7 @@ class WeeklyScheduleModel {
         orElse: () => ScheduleStatus.draft,
       ),
       createdBy: json['createdBy'] as String,
-      publishedAt: json['publishedAt'] != null 
-          ? (json['publishedAt'] as Timestamp).toDate() 
-          : null,
+      publishedAt: json['publishedAt'] != null ? (json['publishedAt'] as Timestamp).toDate() : null,
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       assignments: (json['assignments'] as List?)
           ?.map((a) => ScheduleAssignmentModel.fromJson(a as Map<String, dynamic>))

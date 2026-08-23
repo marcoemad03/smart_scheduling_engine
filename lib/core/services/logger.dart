@@ -1,6 +1,6 @@
 import 'package:logger/logger.dart';
 
-final Logger logger = Logger(
+final Logger appLogger = Logger(
   printer: PrettyPrinter(
     methodCount: 2,
     errorMethodCount: 5,
@@ -10,13 +10,15 @@ final Logger logger = Logger(
 );
 
 void logError(Object error, [StackTrace? stackTrace]) {
-  logger.e('Error occurred', error: error, stackTrace: stackTrace);
+  appLogger.e('Error occurred', error: error, stackTrace: stackTrace);
 }
 
 void logInfo(String message) {
-  logger.i(message);
+  appLogger.i(message);
 }
 
 void logWarning(String message) {
-  logger.w(message);
+  appLogger.w(message);
 }
+
+final logger = appLogger;

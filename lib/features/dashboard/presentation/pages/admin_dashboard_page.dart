@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:reception_scheduler/app/routes.dart';
+import 'package:go_router/go_router.dart';
 
 class AdminDashboardPage extends ConsumerWidget {
   const AdminDashboardPage({Key? key}) : super(key: key);
@@ -63,7 +63,8 @@ class AdminDashboardPage extends ConsumerWidget {
               children: [
                 Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 12),
-                Text(label, 
+                Text(
+                  label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w500,
                   ),

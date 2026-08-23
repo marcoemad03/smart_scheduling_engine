@@ -4,7 +4,6 @@ class AppTheme {
   static final ThemeData light = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-    textTheme: Typography.material2021,
     appBarTheme: AppBarTheme(
       centerTitle: true,
       elevation: 0,
@@ -15,9 +14,6 @@ class AppTheme {
         borderRadius: BorderRadius.all(Radius.circular(12)),
       ),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
-      shape: CircleBorder(),
-    ),
   );
 
   static final ThemeData dark = ThemeData(
@@ -26,7 +22,6 @@ class AppTheme {
       seedColor: Colors.blue,
       brightness: Brightness.dark,
     ),
-    textTheme: Typography.material2021,
     appBarTheme: AppBarTheme(
       centerTitle: true,
       elevation: 0,
@@ -39,3 +34,4 @@ class AppTheme {
     ),
   );
 }
+
