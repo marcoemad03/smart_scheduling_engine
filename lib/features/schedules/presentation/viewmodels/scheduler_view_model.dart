@@ -98,6 +98,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
   final ScheduleRepository repository;
   final FirebaseFirestore firestore;
   final String currentUserId;
+  int _loadToken = 0;
 
   SchedulerViewModel({
     required this.repository,
@@ -106,6 +107,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
   }) : super(SchedulerState(weekStart: DateTimeUtils.getStartOfWeek(DateTime.now())));
 
   Future<void> loadWeek(DateTime weekStart) async {
+    final token = ++_loadToken;
     state = state.copyWith(isLoading: true, error: null, weekStart: weekStart);
     try {
       final fetchedWeekStart = DateTimeUtils.getStartOfWeek(weekStart);
@@ -118,6 +120,9 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
         _fetchAvailabilities(fetchedWeekStart),
         _fetchLeaves(fetchedWeekStart),
       ]);
+
+      // A newer loadWeek call superseded this one - discard the stale data.
+      if (token != _loadToken) return;
 
       final schedule = results[0] as WeeklySchedule?;
       final employees = results[1] as List<Employee>;
@@ -650,9 +655,14 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
 
   Future<void> saveDraft() async {
     if (state.schedule == null) return;
-    final draft = state.schedule!.copyWith(status: ScheduleStatus.draft);
-    await repository.saveSchedule(draft);
-    state = state.copyWith(schedule: draft, hasUnsavedChanges: false);
+    try {
+      final draft = state.schedule!.copyWith(status: ScheduleStatus.draft);
+      await repository.saveSchedule(draft);
+      state = state.copyWith(schedule: draft, hasUnsavedChanges: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
   }
 
   List<ScheduleConflict> validateSchedule() {
@@ -665,44 +675,59 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
 
   Future<void> publish() async {
     if (state.schedule == null) return;
-    final published = state.schedule!.copyWith(
-      status: ScheduleStatus.published,
-      publishedAt: DateTime.now(),
-      assignments: state.schedule!.assignments
-          .map((a) => a.status == AssignmentStatus.overridden
-              ? a
-              : a.copyWith(status: AssignmentStatus.published))
-          .toList(),
-    );
-    await repository.saveSchedule(published);
-    state = state.copyWith(schedule: published, hasUnsavedChanges: false);
+    try {
+      final published = state.schedule!.copyWith(
+        status: ScheduleStatus.published,
+        publishedAt: DateTime.now(),
+        assignments: state.schedule!.assignments
+            .map((a) => a.status == AssignmentStatus.overridden
+                ? a
+                : a.copyWith(status: AssignmentStatus.published))
+            .toList(),
+      );
+      await repository.saveSchedule(published);
+      state = state.copyWith(schedule: published, hasUnsavedChanges: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
   }
 
   Future<void> unpublish() async {
     if (state.schedule == null) return;
-    final draft = state.schedule!.copyWith(
-      status: ScheduleStatus.draft,
-      publishedAt: null,
-    );
-    await repository.saveSchedule(draft);
-    state = state.copyWith(schedule: draft, hasUnsavedChanges: false);
+    try {
+      final draft = state.schedule!.copyWith(
+        status: ScheduleStatus.draft,
+        publishedAt: null,
+      );
+      await repository.saveSchedule(draft);
+      state = state.copyWith(schedule: draft, hasUnsavedChanges: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
   }
 
   Future<void> newVersion() async {
     if (state.schedule == null) return;
-    final next = state.schedule!.copyWith(
-      version: state.schedule!.version + 1,
-      status: ScheduleStatus.draft,
-      publishedAt: null,
-      assignments:
-          state.schedule!.assignments.map((a) => a.copyWith(
-            id: const Uuid().v4(),
-            status: AssignmentStatus.draft,
-            updatedBy: currentUserId,
-          )).toList(),
-    );
-    state = state.copyWith(schedule: next, hasUnsavedChanges: true);
-    await repository.saveSchedule(next);
+    try {
+      final next = state.schedule!.copyWith(
+        version: state.schedule!.version + 1,
+        status: ScheduleStatus.draft,
+        publishedAt: null,
+        assignments:
+            state.schedule!.assignments.map((a) => a.copyWith(
+              id: const Uuid().v4(),
+              status: AssignmentStatus.draft,
+              updatedBy: currentUserId,
+            )).toList(),
+      );
+      state = state.copyWith(schedule: next, hasUnsavedChanges: true);
+      await repository.saveSchedule(next);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
   }
 
   Future<void> saveAsTemplate(String name) async {

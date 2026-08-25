@@ -90,6 +90,7 @@ class WeeklySchedule {
   final String createdBy;
   final DateTime? publishedAt;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final List<ScheduleAssignment> assignments;
 
   WeeklySchedule({
@@ -101,6 +102,7 @@ class WeeklySchedule {
     required this.createdBy,
     this.publishedAt,
     DateTime? createdAt,
+    this.updatedAt,
     required this.assignments,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -131,6 +133,7 @@ class WeeklySchedule {
     int? version,
     ScheduleStatus? status,
     DateTime? publishedAt,
+    DateTime? updatedAt,
     List<ScheduleAssignment>? assignments,
   }) {
     return WeeklySchedule(
@@ -142,6 +145,7 @@ class WeeklySchedule {
       createdBy: createdBy,
       publishedAt: publishedAt ?? this.publishedAt,
       createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       assignments: assignments ?? this.assignments,
     );
   }

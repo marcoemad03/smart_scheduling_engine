@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
+import 'package:reception_workforce_scheduler/features/attendance/data/attendance_repository.dart';
+import 'package:reception_workforce_scheduler/features/attendance/domain/entities/attendance_record.dart';
+import 'package:reception_workforce_scheduler/features/leaves/data/leaves_repository.dart';
+import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
+import 'package:reception_workforce_scheduler/features/swaps/data/swaps_repository.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/services/workload_calculator.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/providers/scheduler_providers.dart';
+import 'package:reception_workforce_scheduler/features/schedules/presentation/viewmodels/scheduler_view_model.dart';
 
 class AdminDashboardPage extends ConsumerStatefulWidget {
   const AdminDashboardPage({Key? key}) : super(key: key);
 
   @override
-  ConsumerState<AdminDashboardPage> createState() => _AdminDashboardPageState();
+  ConsumerState<AdminDashboardPage> createState() =>
+      _AdminDashboardPageState();
 }
 
 class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
@@ -22,281 +31,420 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       if (ref.read(schedulerViewModelProvider).weekCoverage == null) {
         vm.loadWeek(DateTimeUtils.getStartOfWeek(DateTime.now()));
       }
+      ref.read(adminAttendanceProvider.notifier).watch(
+            employeeId: '',
+            from: DateTimeUtils.getStartOfWeek(DateTime.now())
+                .subtract(const Duration(days: 1)),
+            to: DateTimeUtils.getStartOfWeek(DateTime.now())
+                .add(const Duration(days: 8)),
+          );
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(schedulerViewModelProvider);
-    final coverage = state.weekCoverage;
+    final attendanceAsync = ref.watch(adminAttendanceProvider);
+    final leaves = ref.watch(adminLeavesViewModelProvider).asData?.value ?? [];
+    final swaps = ref.watch(adminSwapsViewModelProvider).asData?.value ?? [];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Dashboard')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Welcome, Administrator',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Manage your reception workforce',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 24),
-            _buildCoverageOverview(context, state.isLoading, coverage),
+            if (state.isLoading)
+              const Center(child: CircularProgressIndicator())
+            else ...[
+              _sectionTitle(context, 'Key Metrics'),
+              const SizedBox(height: 12),
+              _kpis(context, state, attendanceAsync, leaves, swaps),
+              const SizedBox(height: 24),
+              _todaysCoverageSection(context, state),
+              const SizedBox(height: 24),
+              _weeklyWorkloadSection(context, state),
+              const SizedBox(height: 24),
+            ],
+            _sectionTitle(context, 'Quick Actions'),
+            const SizedBox(height: 12),
+            _quickActions(context),
             const SizedBox(height: 32),
-            Text(
-              'Quick Actions',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildQuickActionCard(context, Icons.people_outline, 'Employees', '/admin/employees'),
-                _buildQuickActionCard(context, Icons.room_outlined, 'Areas', '/admin/areas'),
-                _buildQuickActionCard(context, Icons.schedule_outlined, 'Shifts', '/admin/shifts'),
-                _buildQuickActionCard(context, Icons.badge_outlined, 'Staffing', '/admin/staffing'),
-                _buildQuickActionCard(context, Icons.calendar_today_outlined, 'Schedules', '/admin/schedules'),
-                _buildQuickActionCard(context, Icons.event_available_outlined, 'Leave Requests', '/admin/leaves'),
-                _buildQuickActionCard(context, Icons.swap_horiz_outlined, 'Swap Requests', '/admin/swaps'),
-                _buildQuickActionCard(context, Icons.check_circle_outline, 'Attendance', '/admin/attendance'),
-                _buildQuickActionCard(context, Icons.settings_outlined, 'Settings', '/admin/settings'),
-              ],
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCoverageOverview(
-      BuildContext context, bool isLoading, WeekCoverageResult? coverage) {
+  // ------------------------------------------------------------- KPI cards
+
+  Widget _kpis(
+    BuildContext context,
+    SchedulerState state,
+    AsyncValue<List<AttendanceRecord>> attendance,
+    List leaves,
+    List swaps,
+  ) {
+    final today = DateTime.now();
+    final todayResult = const CoverageCalculator().calculateForDay(
+      day: today,
+      assignments: state.schedule?.assignments ?? const [],
+      requirements: state.staffingRequirements,
+    );
+
+    var understaffedAreas = <String>{};
+    var overstaffedAreas = <String>{};
+    for (final i in todayResult.intervals) {
+      if (i.status == CoverageStatus.understaffed) understaffedAreas.add(i.areaId);
+      if (i.status == CoverageStatus.overstaffed) overstaffedAreas.add(i.areaId);
+    }
+
+    final errorConflicts = state.conflictsByAssignment.values
+        .expand((c) => c)
+        .where((c) => c.severity == ConflictSeverity.error)
+        .length;
+
+    final summary = AttendanceSummary.of(attendance.asData?.value ?? []);
+
+    final workloads = const WorkloadCalculator().compute(
+      weekStart: state.weekStart,
+      assignments: state.schedule?.assignments ?? const [],
+      employees: state.employees,
+      settings: state.settings ??
+          _defaultSettings(),
+    );
+    final totalHours =
+        workloads.fold<double>(0, (s, w) => s + w.totalHours);
+    final totalOvertime =
+        workloads.fold<double>(0, (s, w) => s + w.overtimeHours);
+
+    final pendingRequests =
+        leaves.where((r) => r.status.name == 'pending').length +
+            swaps.where((r) => r.status.name == 'pending').length;
+
+    final activeEmployees =
+        state.employees.where((e) => e.isActive).length;
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final cardWidth = width > 1100
+          ? (width - 60) / 4
+          : width > 700
+              ? (width - 40) / 3
+              : (width - 16) / 2;
+      return Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: [
+          _kpi('Active Employees', '$activeEmployees', Icons.people_outline,
+              Colors.blue, cardWidth),
+          _kpi('Scheduled Today', '${todayResult.totalScheduled}',
+              Icons.event_available, Colors.indigo, cardWidth),
+          _kpi('Required Today', '${todayResult.totalRequired}',
+              Icons.flag_outlined, Colors.teal, cardWidth),
+          _kpi(
+              'Coverage',
+              '${todayResult.coveragePercentage.toStringAsFixed(1)}%',
+              Icons.donut_large,
+              statusColorOf(todayResult.status),
+              cardWidth),
+          _kpi('Understaffed Areas', '${understaffedAreas.length}',
+              Icons.trending_down, Colors.red, cardWidth),
+          _kpi('Overstaffed Areas', '${overstaffedAreas.length}',
+              Icons.trending_up, Colors.orange, cardWidth),
+          _kpi('Schedule Conflicts', '$errorConflicts', Icons.warning_amber,
+              errorConflicts > 0 ? Colors.red : Colors.green, cardWidth),
+          _kpi('Pending Requests', '$pendingRequests', Icons.pending_outlined,
+              pendingRequests > 0 ? Colors.amber.shade800 : Colors.grey, cardWidth),
+          _kpi('Total Weekly Hours', '${totalHours.toStringAsFixed(1)}h',
+              Icons.schedule, Colors.purple, cardWidth),
+          _kpi('Overtime', '${totalOvertime.toStringAsFixed(1)}h',
+              Icons.trending_flat, totalOvertime > 0 ? Colors.deepOrange : Colors.grey, cardWidth),
+          _kpi('Late Today', '${summary.lateCount}', Icons.access_time,
+              summary.lateCount > 0 ? Colors.orange : Colors.grey, cardWidth),
+          _kpi('Absences', '${summary.absentCount}', Icons.person_off_outlined,
+              summary.absentCount > 0 ? Colors.red : Colors.grey, cardWidth),
+        ],
+      );
+    });
+  }
+
+  Widget _kpi(String label, String value, IconData icon, Color color,
+      double width) {
+    return SizedBox(
+      width: width,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            CircleAvatar(
+              backgroundColor: color.withOpacity(0.12),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(label,
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------- Today's coverage table
+
+  Widget _todaysCoverageSection(BuildContext context, SchedulerState state) {
+    final todayResult = const CoverageCalculator().calculateForDay(
+      day: DateTime.now(),
+      assignments: state.schedule?.assignments ?? const [],
+      requirements: state.staffingRequirements,
+    );
+    final areaNames = {for (final a in state.areas) a.areaId: a.name};
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.today, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text("Today's Coverage — ${DateFormat('EEEE, MMM d').format(DateTime.now())}",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ]),
+          const SizedBox(height: 12),
+          if (!todayResult.hasRequirements)
+            const Text('No staffing requirements defined for today.',
+                style: TextStyle(color: Colors.grey))
+          else
+            Table(
+              columnWidths: const {
+                0: FlexColumnWidth(2.2),
+                1: FlexColumnWidth(1),
+                2: FlexColumnWidth(1),
+                3: FlexColumnWidth(2),
+              },
+              border: TableBorder.symmetric(
+                  inside: BorderSide(color: Colors.grey.shade300, width: 0.5)),
               children: [
-                const Icon(Icons.insights),
-                const SizedBox(width: 8),
-                Text('This Week\'s Coverage',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                TableRow(children: [
+                  _th('Area'),
+                  _th('Required'),
+                  _th('Scheduled'),
+                  _th('Status'),
+                ]),
+                ...todayResult.intervals.map((i) => TableRow(children: [
+                      Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Text(
+                              '${areaNames[i.areaId] ?? i.areaId} • ${_hm(i.startMinute)}→${_hm(i.endMinute)}')),
+                      Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Text('${i.requiredCount}')),
+                      Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Text('${i.scheduledCount}')),
+                      Padding(padding: const EdgeInsets.all(6), child: _statusChip(i.status)),
+                    ])),
               ],
             ),
-            const SizedBox(height: 16),
-            if (isLoading || coverage == null)
-              const Center(child: CircularProgressIndicator())
-            else ...[
-              _WeeklySummaryCard(coverage: coverage),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children:
-                    coverage.days.map((d) => _DayCoverageCard(day: d)).toList(),
-              ),
-              const SizedBox(height: 8),
-              Row(children: [
-                _legendDot(Colors.green),
-                const Text(' Fully covered   '),
-                _legendDot(Colors.orange),
-                const Text(' Overstaffed   '),
-                _legendDot(Colors.red),
-                const Text(' Understaffed'),
-              ]),
-            ],
-          ],
-        ),
+        ]),
       ),
     );
   }
 
-  Widget _legendDot(Color color) => Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  String _hm(int m) =>
+      '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+
+  static Widget _th(String text) => Padding(
+        padding: const EdgeInsets.all(6),
+        child: Text(text,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
       );
 
-  Widget _buildQuickActionCard(BuildContext context, IconData icon, String label, String route) {
-    return SizedBox(
-      width: 200,
-      child: Card(
-        child: InkWell(
-          onTap: () => context.go(route),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(height: 12),
-                Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-Color statusColor(CoverageStatus status) {
-  switch (status) {
-    case CoverageStatus.fullyCovered:
-      return Colors.green;
-    case CoverageStatus.overstaffed:
-      return Colors.orange;
-    case CoverageStatus.understaffed:
-      return Colors.red;
-  }
-}
-
-String statusLabel(CoverageStatus status) {
-  switch (status) {
-    case CoverageStatus.fullyCovered:
-      return 'FULLY COVERED';
-    case CoverageStatus.overstaffed:
-      return 'OVERSTAFFED';
-    case CoverageStatus.understaffed:
-      return 'UNDERSTAFFED';
-  }
-}
-
-class _WeeklySummaryCard extends StatelessWidget {
-  final WeekCoverageResult coverage;
-  const _WeeklySummaryCard({required this.coverage});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = statusColor(coverage.status);
+  Widget _statusChip(CoverageStatus status) {
+    final color = statusColorOf(status);
+    final label = switch (status) {
+      CoverageStatus.fullyCovered => 'COVERED',
+      CoverageStatus.overstaffed => 'OVERSTAFFED',
+      CoverageStatus.understaffed => 'UNDERSTAFFED',
+    };
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Wrap(
-        spacing: 32,
-        runSpacing: 12,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Required'),
-            Text('${coverage.totalRequired}',
-                style: Theme.of(context).textTheme.headlineSmall),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(_statusIcon(status), size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: color)),
+      ]),
+    );
+  }
+
+  IconData _statusIcon(CoverageStatus s) => switch (s) {
+        CoverageStatus.fullyCovered => Icons.check_circle,
+        CoverageStatus.overstaffed => Icons.arrow_circle_up,
+        CoverageStatus.understaffed => Icons.error,
+      };
+
+  Color statusColorOf(CoverageStatus s) => switch (s) {
+        CoverageStatus.fullyCovered => Colors.green,
+        CoverageStatus.overstaffed => Colors.orange,
+        CoverageStatus.understaffed => Colors.red,
+      };
+
+  // ----------------------------------------------- Weekly workload section
+
+  Widget _weeklyWorkloadSection(BuildContext context, SchedulerState state) {
+    final calculator = const WorkloadCalculator();
+    final workloads = calculator.compute(
+      weekStart: state.weekStart,
+      assignments: state.schedule?.assignments ?? const [],
+      employees: state.employees,
+      settings: state.settings ?? _defaultSettings(),
+    )..sort((a, b) => b.totalHours.compareTo(a.totalHours));
+    final avg = calculator.averageHours(workloads);
+    final employeeNames = {for (final e in state.employees) e.id: e.fullName};
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.bar_chart, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text('Weekly Workload (${DateFormat('MMM d').format(state.weekStart)})',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            const Spacer(),
+            Text('Team average: ${avg.toStringAsFixed(1)}h',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Scheduled'),
-            Text('${coverage.totalScheduled}',
-                style: Theme.of(context).textTheme.headlineSmall),
-          ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Missing'),
-            Text('${coverage.totalMissing}',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(color: Colors.red)),
-          ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Extra'),
-            Text('${coverage.totalExtra}',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(color: Colors.orange)),
-          ]),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Coverage'),
-            Text('${coverage.coveragePercentage.toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.headlineSmall),
-          ]),
-          Chip(
-            backgroundColor: color,
-            label: Text(statusLabel(coverage.status),
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          const Text(
+            'Red rows are significantly overloaded vs the team (>30% above average), have overtime, or excessive consecutive load.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
-        ],
+          const SizedBox(height: 12),
+          if (workloads.isEmpty)
+            const Text('No schedule data for this week.',
+                style: TextStyle(color: Colors.grey))
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowHeight: 36,
+                dataRowMinHeight: 34,
+                columns: const [
+                  DataColumn(label: Text('Employee')),
+                  DataColumn(label: Text('Hours'), numeric: true),
+                  DataColumn(label: Text('Days'), numeric: true),
+                  DataColumn(label: Text('Nights'), numeric: true),
+                  DataColumn(label: Text('Weekend'), numeric: true),
+                  DataColumn(label: Text('Long'), numeric: true),
+                  DataColumn(label: Text('Overtime'), numeric: true),
+                ],
+                rows: workloads.map((w) {
+                  final flagged =
+                      calculator.isSignificantlyOverworked(w, avg) ||
+                          w.overtimeHours > 0;
+                  return DataRow(
+                    color: flagged
+                        ? WidgetStateProperty.all(Colors.red.withOpacity(0.07))
+                        : null,
+                    cells: [
+                      DataCell(Row(children: [
+                        if (flagged)
+                          const Icon(Icons.priority_high,
+                              size: 13, color: Colors.red),
+                        const SizedBox(width: 4),
+                        Text(employeeNames[w.employeeId] ?? w.employeeId),
+                      ])),
+                      DataCell(Text(w.totalHours.toStringAsFixed(1))),
+                      DataCell(Text('${w.daysWorked}')),
+                      DataCell(Text('${w.nightShifts}')),
+                      DataCell(Text('${w.weekendShifts}')),
+                      DataCell(Text('${w.longShifts}')),
+                      DataCell(Text(
+                        w.overtimeHours > 0
+                            ? '+${w.overtimeHours.toStringAsFixed(1)}h'
+                            : '-',
+                        style: TextStyle(
+                            color: w.overtimeHours > 0
+                                ? Colors.deepOrange
+                                : null,
+                            fontWeight: w.overtimeHours > 0
+                                ? FontWeight.bold
+                                : null),
+                      )),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+        ]),
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------- shared
+
+  Widget _sectionTitle(BuildContext context, String title) => Text(title,
+      style: Theme.of(context)
+          .textTheme
+          .titleLarge
+          ?.copyWith(fontWeight: FontWeight.bold));
+
+  Widget _quickActions(BuildContext context) {
+    final actions = [
+      (Icons.calendar_today_outlined, 'Schedules', '/admin/schedules'),
+      (Icons.smart_toy_outlined, 'AI Assistant', '/admin/assistant'),
+      (Icons.people_outline, 'Employees', '/admin/employees'),
+      (Icons.room_outlined, 'Areas', '/admin/areas'),
+      (Icons.badge_outlined, 'Staffing', '/admin/staffing'),
+      (Icons.fact_check_outlined, 'Attendance', '/admin/attendance'),
+      (Icons.settings_outlined, 'Settings', '/admin/settings'),
+    ];
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: actions
+          .map((a) => ActionChip(
+                avatar: Icon(a.$1, size: 18),
+                label: Text(a.$2),
+                onPressed: () => context.go(a.$3),
+              ))
+          .toList(),
     );
   }
 }
 
-class _DayCoverageCard extends StatelessWidget {
-  final DayCoverageResult day;
-  const _DayCoverageCard({required this.day});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = statusColor(day.status);
-    return SizedBox(
-      width: 150,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(DateFormat('EEE').format(day.date),
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(DateFormat('MMM d').format(day.date),
-                style: const TextStyle(fontSize: 11)),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: day.coveragePercentage / 100,
-              backgroundColor: Colors.grey.shade300,
-              color: color,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${day.totalScheduled}/${day.totalRequired} • ${day.coveragePercentage.toStringAsFixed(0)}%',
-              style: const TextStyle(fontSize: 11),
-            ),
-            if (day.hasRequirements)
-              Text(
-                statusLabel(day.status),
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: color),
-              )
-            else
-              const Text('No requirements',
-                  style: TextStyle(fontSize: 10, color: Colors.grey)),
-          ],
-        ),
-      ),
+SystemSettings _defaultSettings() => SystemSettings(
+      settingsId: 'default',
+      maxWeeklyHours: 48,
+      minRestPeriodMinutes: 480,
+      workingHoursStart: 480,
+      workingHoursEnd: 1320,
+      allowCustomSchedules: true,
+      enableAttendanceTracking: false,
+      timezone: 'UTC',
+      weekStartDay: 1,
+      updatedAt: DateTime.now(),
+      updatedBy: '',
     );
-  }
-}
+

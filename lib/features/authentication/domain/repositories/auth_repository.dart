@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/errors/exceptions.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
@@ -40,13 +41,40 @@ class AuthRepositoryImpl implements AuthRepository {
         email: email,
         password: password,
       );
+      final uid = userCredential.user!.uid;
 
-      final userDoc = await remoteDataSource.getUserById(userCredential.user!.uid);
-      await remoteDataSource.updateUserLastLogin(userCredential.user!.uid);
+      final userDoc = await remoteDataSource.getUserById(uid);
+      await remoteDataSource.updateUserLastLogin(uid);
+      // Link auth account -> employee record (by email) so employee-scoped
+      // features resolve the correct employeeId.
+      await remoteDataSource.linkEmployeeRecord(uid, userCredential.user!.email);
 
       return userDoc.toDomain();
+    } on FirebaseAuthException catch (e) {
+      throw AppException(_friendlyAuthError(e));
     } catch (e) {
       throw AppException('Authentication failed: $e');
+    }
+  }
+
+  String _friendlyAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+      case 'user-not-found':
+        return 'Wrong email or password. Please try again.';
+      case 'invalid-email':
+        return 'That email address is not valid.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait and try again.';
+      case 'network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      case 'operation-not-allowed':
+        return 'Email/password sign-in is not enabled for this Firebase project.';
+      default:
+        return e.message ?? 'Sign-in failed (${e.code}).';
     }
   }
 
@@ -59,8 +87,20 @@ class AuthRepositoryImpl implements AuthRepository {
   Stream<UserDomain?> authStateChanges() {
     return remoteDataSource.authStateChanges().asyncMap((user) async {
       if (user == null) return null;
-      final userModel = await remoteDataSource.getUserById(user.uid);
-      return userModel.toDomain();
+      try {
+        final userModel = await remoteDataSource.getUserById(user.uid);
+        return userModel.toDomain();
+      } catch (_) {
+        // Users document missing/unreadable: fail closed as a plain employee
+        // instead of killing the stream.
+        return UserDomain(
+          id: user.uid,
+          email: user.email ?? '',
+          role: UserRole.employee,
+          displayName: user.email ?? 'Unknown',
+          isActive: true,
+        );
+      }
     });
   }
 

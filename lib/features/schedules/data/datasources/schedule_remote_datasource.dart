@@ -37,9 +37,30 @@ class ScheduleRemoteDataSource {
 
   Future<void> saveSchedule(WeeklyScheduleModel schedule) async {
     final docId = _docId(schedule.weekStartDate);
-    await firestore.collection('weeklySchedules').doc(docId).set(
-          schedule.toJson(),
-        );
+    final docRef = firestore.collection('weeklySchedules').doc(docId);
+
+    await firestore.runTransaction((tx) async {
+      final snapshot = await tx.get(docRef);
+      if (snapshot.exists) {
+        final remoteUpdatedAt =
+            snapshot.data()?['updatedAt'] as Timestamp?;
+        // Optimistic concurrency: refuse to silently overwrite another
+        // admin's changes saved after this editor loaded the document.
+        if (remoteUpdatedAt != null && schedule.updatedAt != null) {
+          final localLoadedAt = Timestamp.fromDate(schedule.updatedAt!);
+          if (remoteUpdatedAt.millisecondsSinceEpoch >
+              localLoadedAt.millisecondsSinceEpoch + 2000) {
+            throw StateError(
+                'CONCURRENT_MODIFICATION: This schedule was changed by '
+                'another admin. Reload the week to get their changes, then '
+                're-apply yours.');
+          }
+        }
+      }
+      final data = schedule.toJson();
+      data['updatedAt'] = FieldValue.serverTimestamp();
+      tx.set(docRef, data, SetOptions(merge: true));
+    });
   }
 
   Future<void> deleteSchedule(String scheduleId) async {

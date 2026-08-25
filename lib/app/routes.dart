@@ -1,3 +1,9 @@
+﻿import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:reception_workforce_scheduler/core/providers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,8 +27,35 @@ import '../features/attendance/presentation/pages/my_attendance_page.dart';
 import '../features/attendance/presentation/pages/admin_attendance_page.dart';
 
 class AppRoutes {
+  static final _authNotifier = AuthRoleNotifier();
+  static String? _lastPath;
+
   static final router = GoRouter(
     initialLocation: '/login',
+    refreshListenable: _authNotifier,
+    redirect: (context, state) {
+      final loggedIn = FirebaseAuth.instance.currentUser != null;
+      final path = state.uri.path;
+      final role = _authNotifier.role;
+
+      if (!loggedIn) {
+        return path == '/login' ? null : '/login';
+      }
+      if (path == '/login') {
+        return role == 'employee' ? '/employee' : '/admin';
+      }
+      // Role-based access: employees can never enter /admin routes.
+      if (role == 'employee' && path.startsWith('/admin')) {
+        return '/employee';
+      }
+      // Until the role is loaded, keep the user where they are only if the
+      // route matches their eventual role; otherwise park them safely.
+      if (role == null && path.startsWith('/admin')) {
+        return _lastPath ?? '/login';
+      }
+      _lastPath = path;
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/login',
@@ -61,12 +94,45 @@ class AppRoutes {
   );
 }
 
-class AdminDashboardShell extends StatelessWidget {
+/// Tracks the signed-in user's role so the router can guard routes.
+class AuthRoleNotifier extends ChangeNotifier {
+  String? role;
+  bool _disposed = false;
+  StreamSubscription? _sub;
+
+  AuthRoleNotifier() {
+    _sub = FirebaseAuth.instance.authStateChanges().listen((user) async {
+      if (_disposed) return;
+      role = null;
+      if (user != null) {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          role = doc.data()?['role'] as String?;
+        } catch (_) {
+          role = 'employee'; // fail closed: least privilege
+        }
+      }
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _sub?.cancel();
+    super.dispose();
+  }
+}
+
+class AdminDashboardShell extends ConsumerWidget {
   final Widget child;
   const AdminDashboardShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final List<Map<String, dynamic>> items = [
       {'icon': Icons.dashboard_outlined, 'label': 'Dashboard', 'route': '/admin'},
       {'icon': Icons.people_outline, 'label': 'Employees', 'route': '/admin/employees'},
@@ -99,6 +165,15 @@ class AdminDashboardShell extends StatelessWidget {
               icon: Icon(item['icon'] as IconData),
               label: Text(item['label'] as String),
             )).toList(),
+            trailing: Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _LogoutButton(ref: ref),
+                ),
+              ),
+            ),
           ),
           Expanded(child: child),
         ],
@@ -107,12 +182,12 @@ class AdminDashboardShell extends StatelessWidget {
   }
 }
 
-class EmployeeDashboardShell extends StatelessWidget {
+class EmployeeDashboardShell extends ConsumerWidget {
   final Widget child;
   const EmployeeDashboardShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final List<Map<String, dynamic>> items = [
       {'icon': Icons.dashboard_outlined, 'label': 'Dashboard', 'route': '/employee'},
       {'icon': Icons.calendar_today_outlined, 'label': 'Schedule', 'route': '/employee/schedule'},
@@ -140,10 +215,52 @@ class EmployeeDashboardShell extends StatelessWidget {
               icon: Icon(item['icon'] as IconData),
               label: Text(item['label'] as String),
             )).toList(),
+            trailing: Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _LogoutButton(ref: ref),
+                ),
+              ),
+            ),
           ),
           Expanded(child: child),
         ],
       ),
+    );
+  }
+}
+
+class _LogoutButton extends ConsumerWidget {
+  final WidgetRef ref;
+  const _LogoutButton({required this.ref});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return IconButton(
+      tooltip: 'Logout',
+      icon: const Icon(Icons.logout),
+      onPressed: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to sign out?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Logout')),
+            ],
+          ),
+        );
+        if (confirmed == true && context.mounted) {
+          await ref.read(authViewModelProvider.notifier).signOut();
+        }
+      },
     );
   }
 }

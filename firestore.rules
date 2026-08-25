@@ -1,18 +1,109 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 9, 22);
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && userDoc().role == 'admin';
+    }
+
+    function isEmployee() {
+      return signedIn() && userDoc().role == 'employee';
+    }
+
+    function isSelf(field) {
+      return signedIn() && resource.data[field] == request.auth.uid;
+    }
+
+    // ---- Users: read own profile; admins manage all ----
+    match /users/{uid} {
+      allow get, update: if signedIn() && (uid == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+    }
+
+    // ---- Employees catalogue: everyone authenticated reads; admin writes ----
+    match /employees/{employeeId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---- Config collections: public read for signed-in users, admin write ----
+    match /areas/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /shiftTemplates/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /staffingRequirements/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /systemSettings/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /scheduleTemplates/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---- Weekly schedules ----
+    // Employees may ONLY query/list PUBLISHED schedules (the query itself
+    // must filter status == 'published'). Admins have full access.
+    match /weeklySchedules/{scheduleId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin() ||
+        (!('status' in request.query) == false &&
+         request.query.status == 'published');
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---- Availability: employees manage their own; admin full ----
+    match /availability/{id} {
+      allow read: if isAdmin() || isSelf('employeeId');
+      allow create: if signedIn() &&
+        (isAdmin() || request.resource.data.employeeId == request.auth.uid);
+      allow update, delete: if isAdmin() || isSelf('employeeId');
+    }
+
+    // ---- Leave requests: employee submits own; only admin changes status ----
+    match /leaveRequests/{id} {
+      allow read: if isAdmin() || isSelf('employeeId');
+      allow create: if signedIn() &&
+        (isAdmin() || request.resource.data.employeeId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- Swap requests ----
+    match /swapRequests/{id} {
+      allow read: if isAdmin() || isSelf('requestingEmployeeId') ||
+        (signedIn() && resource.data.targetEmployeeId == request.auth.uid);
+      allow create: if signedIn() &&
+        (isAdmin() || request.resource.data.requestingEmployeeId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- Attendance: employees read/update own (check in/out); admin full ----
+    match /attendance/{recordId} {
+      allow read: if isAdmin() || isSelf('employeeId');
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isSelf('employeeId');
+    }
+
+    // ---- Notifications: recipient reads/marks own; system writes via admin ----
+    match /notifications/{id} {
+      allow read, update: if isAdmin() || isSelf('userId');
+      allow create, delete: if isAdmin();
     }
   }
 }

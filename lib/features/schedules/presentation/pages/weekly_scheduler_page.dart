@@ -384,6 +384,21 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
     );
   }
 
+  Future<void> _guard(BuildContext context, Future<void> Function() action) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+            e.toString().contains('CONCURRENT_MODIFICATION')
+                ? 'Another admin changed this schedule. Reload the week to get their changes.'
+                : 'Operation failed: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
   Widget _buildActionBar(BuildContext context, SchedulerState state) {
     final isPublished =
         state.schedule?.status == ScheduleStatus.published;
@@ -408,14 +423,6 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         ),
         const SizedBox(width: 8),
         TextButton.icon(
-          icon: const Icon(Icons.content_copy),
-          label: const Text('Copy Prev Week'),
-          onPressed: () => ref
-              .read(schedulerViewModelProvider.notifier)
-              .copyPreviousWeek(),
-        ),
-        const SizedBox(width: 8),
-        TextButton.icon(
           icon: const Icon(Icons.group_add),
           label: const Text('Bulk Assign'),
           onPressed: () => showDialog(
@@ -426,6 +433,18 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
               areas: state.areas,
             ),
           ),
+        ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          icon: const Icon(Icons.save),
+          label: const Text('Save Draft'),
+          onPressed: () => _guard(context, () async {
+            await ref.read(schedulerViewModelProvider.notifier).saveDraft();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Draft saved')));
+            }
+          }),
         ),
         const SizedBox(width: 8),
         TextButton.icon(
@@ -452,21 +471,21 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
             icon: const Icon(Icons.unpublished),
             label: const Text('Unpublish'),
             onPressed: () =>
-                ref.read(schedulerViewModelProvider.notifier).unpublish(),
+                ref.read(schedulerViewModelProvider.notifier).unpublish,
           )
         else
           FilledButton.icon(
             icon: const Icon(Icons.publish),
             label: const Text('Publish'),
             onPressed: () =>
-                ref.read(schedulerViewModelProvider.notifier).publish(),
+                ref.read(schedulerViewModelProvider.notifier).publish,
           ),
         const SizedBox(width: 8),
         FilledButton.tonalIcon(
           icon: const Icon(Icons.add_box),
           label: const Text('New Version'),
           onPressed: () =>
-              ref.read(schedulerViewModelProvider.notifier).newVersion(),
+              ref.read(schedulerViewModelProvider.notifier).newVersion,
         ),
         const SizedBox(width: 8),
         FilledButton.tonalIcon(

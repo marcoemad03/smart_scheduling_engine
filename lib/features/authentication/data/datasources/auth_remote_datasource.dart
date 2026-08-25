@@ -39,6 +39,30 @@ class AuthRemoteDataSource {
       'lastLoginAt': FieldValue.serverTimestamp(),
     });
   }
+
+  /// Links the signed-in auth account to its employee record so schedules
+  /// (keyed by the employee document id) match what employees query by uid.
+  /// Matching is done by email, then by an existing uid field.
+  Future<String?> linkEmployeeRecord(String uid, String? email) async {
+    final employees = firestore.collection('employees');
+    if (email != null && email.isNotEmpty) {
+      final byEmail =
+          await employees.where('email', isEqualTo: email).limit(1).get();
+      if (byEmail.docs.isNotEmpty) {
+        final doc = byEmail.docs.first;
+        if ((doc.data()['uid'] as String? ?? '') != uid) {
+          await doc.reference.update({'uid': uid});
+        }
+        return doc.data()['employeeId'] as String? ?? doc.id;
+      }
+    }
+    final byUid = await employees.where('uid', isEqualTo: uid).limit(1).get();
+    if (byUid.docs.isNotEmpty) {
+      return byUid.docs.first.data()['employeeId'] as String? ??
+          byUid.docs.first.id;
+    }
+    return null;
+  }
 }
 
 class UserModel {

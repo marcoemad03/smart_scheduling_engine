@@ -12,6 +12,7 @@ class WeeklyScheduleModel {
   final String createdBy;
   final DateTime? publishedAt;
   final DateTime createdAt;
+  final DateTime? updatedAt;
   final List<ScheduleAssignmentModel> assignments;
 
   WeeklyScheduleModel({
@@ -23,6 +24,7 @@ class WeeklyScheduleModel {
     required this.createdBy,
     this.publishedAt,
     DateTime? createdAt,
+    this.updatedAt,
     required this.assignments,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -41,6 +43,7 @@ class WeeklyScheduleModel {
           ? (json['publishedAt'] as Timestamp).toDate()
           : null,
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (json['updatedAt'] as Timestamp?)?.toDate(),
       assignments: (json['assignments'] as List?)
               ?.map((a) =>
                   ScheduleAssignmentModel.fromJson(a as Map<String, dynamic>))
@@ -60,6 +63,7 @@ class WeeklyScheduleModel {
       'publishedAt':
           publishedAt != null ? Timestamp.fromDate(publishedAt!) : null,
       'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'assignments': assignments.map((a) => a.toJson()).toList(),
     };
   }
@@ -88,6 +92,7 @@ class WeeklyScheduleModel {
       createdBy: schedule.createdBy,
       publishedAt: schedule.publishedAt,
       createdAt: schedule.createdAt,
+      updatedAt: schedule.updatedAt,
       assignments: schedule.assignments
           .map((a) => ScheduleAssignmentModel.fromDomain(a))
           .toList(),
