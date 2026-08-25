@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/app/app.dart';
+import 'package:reception_workforce_scheduler/firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ class _BootstrapApp extends StatelessWidget {
       future: _initFirebase(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          debugPrint('Firebase init failed: ${snapshot.error}');
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             home: Scaffold(
@@ -65,10 +67,15 @@ class _BootstrapApp extends StatelessWidget {
 
   Future<FirebaseApp> _initFirebase() async {
     try {
-      return await Firebase.initializeApp();
-    } catch (_) {
-      // Duplicate initialization (hot restart) - reuse the default app.
-      return Firebase.app();
+      return await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    } on FirebaseException catch (e) {
+      if (e.code == 'duplicate-app' && Firebase.apps.isNotEmpty) {
+        // Duplicate initialization (hot restart) - reuse the default app.
+        return Firebase.app();
+      }
+      rethrow;
     }
   }
 }

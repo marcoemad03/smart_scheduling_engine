@@ -105,7 +105,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         error: (error, _) => Column(
                           children: [
                             Text(
-                              error.toString().replaceAll('Exception: ', ''),
+                              error
+                                  .toString()
+                                  .replaceFirst('AppException: ', '')
+                                  .replaceFirst('Exception: ', ''),
                               style: TextStyle(color: Theme.of(context).colorScheme.error),
                               textAlign: TextAlign.center,
                             ),

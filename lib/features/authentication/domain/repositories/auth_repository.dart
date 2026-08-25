@@ -69,6 +69,10 @@ class AuthRepositoryImpl implements AuthRepository {
         return 'This account has been disabled.';
       case 'too-many-requests':
         return 'Too many attempts. Please wait and try again.';
+      case 'internal-error':
+        // The desktop (C++ SDK) implementation reports failed credential
+        // validation as internal-error.
+        return 'Sign-in failed. Check your email and password, then try again.';
       case 'network-request-failed':
         return 'Network error. Check your connection and try again.';
       case 'operation-not-allowed':

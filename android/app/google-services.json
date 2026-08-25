@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "629885936331",
+    "firebase_url": "https://smart-scheduling-engine-default-rtdb.firebaseio.com",
+    "project_id": "smart-scheduling-engine",
+    "storage_bucket": "smart-scheduling-engine.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629885936331:android:104db181c56de66d3af14e",
+        "android_client_info": {
+          "package_name": "com.example.smart_scheduling_engine"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3JP_3RASUTEqA-4m3lq1Sh5sC9YI8peo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
