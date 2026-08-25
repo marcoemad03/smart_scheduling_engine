@@ -125,6 +125,7 @@ class WeeklySchedule {
   }
 
   WeeklySchedule copyWith({
+    String? id,
     DateTime? weekStartDate,
     DateTime? weekEndDate,
     int? version,
@@ -133,7 +134,7 @@ class WeeklySchedule {
     List<ScheduleAssignment>? assignments,
   }) {
     return WeeklySchedule(
-      id: id,
+      id: id ?? this.id,
       weekStartDate: weekStartDate ?? this.weekStartDate,
       weekEndDate: weekEndDate ?? this.weekEndDate,
       version: version ?? this.version,

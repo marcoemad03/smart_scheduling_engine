@@ -8,6 +8,8 @@ class Employee {
   final double maxWeeklyHours;
   final List<String> preferredAreas;
   final bool isActive;
+  final String employeeCode;
+  final String notes;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -21,6 +23,8 @@ class Employee {
     required this.maxWeeklyHours,
     required this.preferredAreas,
     required this.isActive,
+    this.employeeCode = '',
+    this.notes = '',
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -36,6 +40,8 @@ class Employee {
     double? maxWeeklyHours,
     List<String>? preferredAreas,
     bool? isActive,
+    String? employeeCode,
+    String? notes,
   }) {
     return Employee(
       id: id,
@@ -47,6 +53,8 @@ class Employee {
       maxWeeklyHours: maxWeeklyHours ?? this.maxWeeklyHours,
       preferredAreas: preferredAreas ?? this.preferredAreas,
       isActive: isActive ?? this.isActive,
+      employeeCode: employeeCode ?? this.employeeCode,
+      notes: notes ?? this.notes,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );

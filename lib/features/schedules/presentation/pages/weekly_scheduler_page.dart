@@ -8,6 +8,7 @@ import 'package:reception_workforce_scheduler/features/schedules/domain/entities
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/conflict_detector.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/dialogs/assignment_dialog.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/dialogs/bulk_and_template_dialogs.dart';
+import 'package:reception_workforce_scheduler/features/schedules/presentation/dialogs/generation_report_dialog.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/providers/scheduler_providers.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/viewmodels/scheduler_view_model.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/widgets/conflict_panel.dart';
@@ -358,12 +359,46 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
     );
   }
 
+  Future<void> _generate(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result =
+        await ref.read(schedulerViewModelProvider.notifier).generateSchedule();
+    if (!mounted || result == null) return;
+    final state = ref.read(schedulerViewModelProvider);
+    await showDialog(
+      context: this.context,
+      builder: (_) => GenerationReportDialog(
+        result: result,
+        employeeNames: {for (final e in state.employees) e.id: e.fullName},
+        areaNames: {for (final a in state.areas) a.areaId: a.name},
+      ),
+    );
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(result.isFullyValid
+            ? 'Draft generated — validated with no conflicts'
+            : 'Draft generated — review the report for unmet requirements'),
+        backgroundColor: result.isFullyValid ? Colors.green : Colors.orange,
+      ),
+    );
+  }
+
   Widget _buildActionBar(BuildContext context, SchedulerState state) {
     final isPublished =
         state.schedule?.status == ScheduleStatus.published;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        FilledButton.icon(
+          icon: const Icon(Icons.auto_fix_high),
+          label: const Text('Generate'),
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.deepPurple,
+          ),
+          onPressed: () => _generate(context),
+        ),
+        const SizedBox(width: 8),
         TextButton.icon(
           icon: const Icon(Icons.content_copy),
           label: const Text('Copy Prev Week'),

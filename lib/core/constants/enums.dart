@@ -15,5 +15,6 @@ enum ConflictType {
   inactiveArea,
   notQualifiedArea,
   staffingNotSatisfied,
+  consecutiveDaysExceeded,
 }
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/features/schedules/data/datasources/schedule_remote_datasource.dart';
 import 'package:reception_workforce_scheduler/features/schedules/data/models/weekly_schedule_model.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
@@ -13,6 +14,21 @@ class ScheduleRepositoryImpl implements ScheduleRepository {
   Future<WeeklySchedule?> getScheduleByWeek(DateTime weekStart) async {
     final model = await remoteDataSource.getScheduleByWeekOnce(weekStart);
     return model?.toDomain();
+  }
+
+  @override
+  Future<WeeklySchedule?> getPublishedScheduleByWeek(DateTime weekStart) async {
+    final model = await remoteDataSource.getScheduleByWeekOnce(weekStart);
+    if (model == null || model.status != ScheduleStatus.published) return null;
+    return model.toDomain();
+  }
+
+  @override
+  Stream<WeeklySchedule?> watchPublishedScheduleByWeek(DateTime weekStart) {
+    return remoteDataSource.getScheduleByWeek(weekStart).map((model) =>
+        (model != null && model.status == ScheduleStatus.published)
+            ? model.toDomain()
+            : null);
   }
 
   @override

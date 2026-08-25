@@ -5,6 +5,7 @@ import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/conflict_detector.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/repositories/schedule_repository.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
@@ -12,6 +13,8 @@ import 'package:reception_workforce_scheduler/features/availability/domain/entit
 import 'package:reception_workforce_scheduler/features/leaves/domain/entities/leave_request.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/services/schedule_generator.dart';
 import 'package:uuid/uuid.dart';
 
 class SchedulerState {
@@ -27,6 +30,7 @@ class SchedulerState {
   final List<LeaveRequest> leaves;
   final Map<String, List<ScheduleConflict>> conflictsByAssignment;
   final List<ScheduleConflict> staffingConflicts;
+  final WeekCoverageResult? weekCoverage;
   final Set<String> overriddenAssignmentIds;
   final bool hasUnsavedChanges;
   final ScheduleAssignment? selectedAssignment;
@@ -44,6 +48,7 @@ class SchedulerState {
     this.leaves = const [],
     this.conflictsByAssignment = const {},
     this.staffingConflicts = const [],
+    this.weekCoverage,
     this.overriddenAssignmentIds = const {},
     this.hasUnsavedChanges = false,
     this.selectedAssignment,
@@ -62,6 +67,7 @@ class SchedulerState {
     List<LeaveRequest>? leaves,
     Map<String, List<ScheduleConflict>>? conflictsByAssignment,
     List<ScheduleConflict>? staffingConflicts,
+    WeekCoverageResult? weekCoverage,
     Set<String>? overriddenAssignmentIds,
     bool? hasUnsavedChanges,
     ScheduleAssignment? selectedAssignment,
@@ -79,6 +85,7 @@ class SchedulerState {
       leaves: leaves ?? this.leaves,
       conflictsByAssignment: conflictsByAssignment ?? this.conflictsByAssignment,
       staffingConflicts: staffingConflicts ?? this.staffingConflicts,
+      weekCoverage: weekCoverage ?? this.weekCoverage,
       overriddenAssignmentIds:
           overriddenAssignmentIds ?? this.overriddenAssignmentIds,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
@@ -205,6 +212,8 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
           data['enableAttendanceTracking'] as bool? ?? false,
       timezone: data['timezone'] as String? ?? 'UTC',
       weekStartDay: data['weekStartDay'] as int? ?? 1,
+      maxConsecutiveWorkingDays:
+          data['maxConsecutiveWorkingDays'] as int? ?? 6,
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -221,6 +230,8 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
         requirementId: data['requirementId'] as String? ?? doc.id,
         areaId: data['areaId'] as String? ?? '',
         dayOfWeek: data['dayOfWeek'] as int? ?? 1,
+        startMinute: data['startMinute'] as int? ?? 0,
+        endMinute: data['endMinute'] as int? ?? 1440,
         requiredCount: data['requiredCount'] as int? ?? 1,
         shiftTemplateId: data['shiftTemplateId'] as String?,
         minHoursPerWeek: data['minHoursPerWeek'] as int? ?? 0,
@@ -321,9 +332,15 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
     final detector = _buildDetector();
     final conflicts = detector.validateSchedule(state.schedule!.assignments);
     final staffing = detector.detectStaffingGaps(state.schedule!.assignments);
+    final coverage = const CoverageCalculator().calculateForWeek(
+      weekStart: state.weekStart,
+      assignments: state.schedule!.assignments,
+      requirements: state.staffingRequirements,
+    );
     state = state.copyWith(
       conflictsByAssignment: conflicts,
       staffingConflicts: staffing,
+      weekCoverage: coverage,
     );
   }
 
@@ -714,6 +731,88 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
     }).toList();
     final assignments = [...state.schedule!.assignments, ...newOnes];
     await _mutateAssignments(assignments, null);
+  }
+
+  // ---- Smart generation ----
+
+  /// Runs the smart generator for the current week and replaces the in-memory
+  /// schedule with the produced DRAFT. Never publishes.
+  Future<GenerationResult?> generateSchedule() async {
+    if (state.schedule == null) return null;
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final templates = await _fetchShiftTemplates();
+      // Overridden (admin-locked) assignments are treated as fixed inputs;
+      // the generator fills the remaining requirements around them.
+      final fixed = state.schedule!.assignments
+          .where((a) => a.status == AssignmentStatus.overridden)
+          .toList();
+      final generator = ScheduleGenerator(
+        settings: state.settings ??
+            SystemSettings(
+              settingsId: 'default',
+              maxWeeklyHours: 48,
+              minRestPeriodMinutes: 480,
+              workingHoursStart: 480,
+              workingHoursEnd: 1320,
+              allowCustomSchedules: true,
+              enableAttendanceTracking: false,
+              timezone: 'UTC',
+              weekStartDay: 1,
+              updatedAt: DateTime.now(),
+              updatedBy: currentUserId,
+            ),
+        employees: state.employees,
+        areas: state.areas,
+        requirements: state.staffingRequirements,
+        shiftTemplates: templates,
+        availabilities: state.availabilities,
+        leaves: state.leaves,
+        fixedAssignments: fixed,
+        weekStart: state.weekStart,
+        createdBy: currentUserId,
+      );
+      final result = generator.generate();
+      final draft = result.draft.copyWith(
+        id: state.schedule!.id,
+        version: state.schedule!.version,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        schedule: draft,
+        hasUnsavedChanges: true,
+        selectedAssignment: null,
+        overriddenAssignmentIds: {},
+      );
+      _recomputeConflicts();
+      return result;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return null;
+    }
+  }
+
+  Future<List<ShiftTemplateEntity>> _fetchShiftTemplates() async {
+    final snapshot =
+        await firestore.collection('shiftTemplates').get();
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      return ShiftTemplateEntity(
+        templateId: data['templateId'] as String? ?? doc.id,
+        name: data['name'] as String? ?? '',
+        startMinute: data['startMinute'] as int? ?? 480,
+        durationMinutes: data['durationMinutes'] as int? ?? 420,
+        isNightShift: data['isNightShift'] as bool? ?? false,
+        colorValue: data['colorValue'] as int? ?? 0xFF2196F3,
+        isActive: data['isActive'] as bool? ?? true,
+        createdAt: data['createdAt'] != null
+            ? (data['createdAt'] as Timestamp).toDate()
+            : DateTime.now(),
+        updatedAt: data['updatedAt'] != null
+            ? (data['updatedAt'] as Timestamp).toDate()
+            : DateTime.now(),
+      );
+    }).toList();
   }
 
   void changeWeek(int direction) {

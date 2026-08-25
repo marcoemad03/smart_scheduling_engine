@@ -1,5 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
+import 'package:reception_workforce_scheduler/core/providers.dart';
+import 'package:reception_workforce_scheduler/features/availability/domain/entities/availability_block.dart';
 
 class AvailabilityPage extends ConsumerStatefulWidget {
   const AvailabilityPage({Key? key}) : super(key: key);
@@ -9,305 +15,253 @@ class AvailabilityPage extends ConsumerStatefulWidget {
 }
 
 class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
-  final List<AvailabilityBlock> _availabilityBlocks = [
-    AvailabilityBlock(
-      id: 'block1',
-      dayOfWeek: 1, // Monday
-      startMinute: 480, // 08:00
-      endMinute: 1320, // 22:00
-      isAvailable: true,
-      isRecurring: true,
-    ),
-    AvailabilityBlock(
-      id: 'block2',
-      dayOfWeek: 3,
-      startMinute: 0,
-      endMinute: 480,
-      isAvailable: false,
-      isRecurring: true,
-      notes: 'Doctor appointment',
-    ),
-  ];
+  Stream<List<AvailabilityBlock>>? _myBlocks;
 
-  final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  @override
+  void initState() {
+    super.initState();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _myBlocks = ref
+        .read(firebaseFirestoreProvider)
+        .collection('availability')
+        .where('employeeId', isEqualTo: uid)
+        .snapshots()
+        .map((s) => s.docs.map((d) => _fromDoc(d.id, d.data())).toList());
+  }
+
+  AvailabilityBlock _fromDoc(String id, Map<String, dynamic> d) {
+    return AvailabilityBlock(
+      availabilityId: d['availabilityId'] as String? ?? id,
+      employeeId: d['employeeId'] as String? ?? '',
+      startDateTime: (d['startDateTime'] as Timestamp).toDate(),
+      endDateTime: (d['endDateTime'] as Timestamp).toDate(),
+      isAvailable: d['isAvailable'] as bool? ?? true,
+      isRecurring: d['isRecurring'] as bool? ?? false,
+      recurrenceDays:
+          (d['recurrenceDays'] as List?)?.cast<int>() ?? const [],
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _submit({
+    required bool isAvailable,
+    required DateTime start,
+    required DateTime end,
+    bool recurring = false,
+    List<int> recurrenceDays = const [],
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    await ref.read(firebaseFirestoreProvider).collection('availability').add({
+      'availabilityId': const Uuid().v4(),
+      'employeeId': uid,
+      'startDateTime': Timestamp.fromDate(start),
+      'endDateTime': Timestamp.fromDate(end),
+      'isAvailable': isAvailable,
+      'isRecurring': recurring,
+      'recurrenceDays': recurrenceDays,
+      'createdAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
+  Future<void> _delete(String id) async {
+    await ref
+        .read(firebaseFirestoreProvider)
+        .collection('availability')
+        .doc(id)
+        .delete();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 768;
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Availability'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_outlined),
-            onPressed: _showAvailabilityDialog,
-          ),
-        ],
+      appBar: AppBar(title: const Text('My Availability')),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
+        onPressed: () => _showDialog(context, defaultAvailable: true),
       ),
-      body: isDesktop 
-          ? _buildDesktopView() 
-          : _buildMobileView(),
-    );
-  }
-
-  Widget _buildDesktopView() {
-    return Column(
-      children: [
-        _buildWeeklyGrid(),
-        Expanded(child: _buildAvailabilityList()),
-      ],
-    );
-  }
-
-  Widget _buildMobileView() {
-    return _buildAvailabilityList();
-  }
-
-  Widget _buildWeeklyGrid() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      height: 200,
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7,
-          childAspectRatio: 1.2,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: 7,
-        itemBuilder: (context, index) {
-          final dayIndex = index + 1;
-          final dayBlocks = _availabilityBlocks.where((b) => b.dayOfWeek == dayIndex).toList();
-          
-          return Card(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(_days[index], style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                )),
-                const SizedBox(height: 4),
-                ...dayBlocks.take(2).map((block) => Container(
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: block.isAvailable 
-                        ? Colors.green.withOpacity(0.3) 
-                        : Colors.red.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(4),
+      body: StreamBuilder<List<AvailabilityBlock>>(
+        stream: _myBlocks,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final blocks = snapshot.data!
+            ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
+          if (blocks.isEmpty) {
+            return const Center(
+                child:
+                    Text('No availability entries. Add when you are unavailable or available.'));
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: blocks.length,
+            itemBuilder: (context, i) {
+              final b = blocks[i];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: Icon(
+                    b.isAvailable ? Icons.check_circle : Icons.block,
+                    color: b.isAvailable ? Colors.green : Colors.red,
                   ),
-                  child: Text(
-                    '${_formatMinutes(block.startMinute)}-${_formatMinutes(block.endMinute)}',
-                    style: Theme.of(context).textTheme.bodySmall,
+                  title: Text(
+                      '${DateFormat('EEE, MMM d • HH:mm').format(b.startDateTime)} → ${DateFormat('HH:mm').format(b.endDateTime)}'),
+                  subtitle: Text(b.isAvailable
+                      ? 'Available'
+                      : 'Unavailable${b.isRecurring ? ' (recurring)' : ''}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _delete(b.availabilityId),
                   ),
-                )),
-                if (dayBlocks.length > 2)
-                  Text('+${dayBlocks.length - 2} more', style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildAvailabilityList() {
-    if (_availabilityBlocks.isEmpty) {
-      return const Center(child: Text('No availability blocks set'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _availabilityBlocks.length,
-      itemBuilder: (context, index) {
-        final block = _availabilityBlocks[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: block.isAvailable 
-                  ? Colors.green.withOpacity(0.3) 
-                  : Colors.red.withOpacity(0.3),
-              child: Icon(
-                block.isAvailable ? Icons.check : Icons.close,
-                color: block.isAvailable ? Colors.green : Colors.red,
-              ),
-            ),
-            title: Text('${_days[block.dayOfWeek - 1]} • ${_formatMinutes(block.startMinute)} - ${_formatMinutes(block.endMinute)}'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(block.isRecurring ? 'Recurring' : 'One-time'),
-                if (block.notes != null && block.notes!.isNotEmpty)
-                  Text(block.notes!),
-              ],
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => _showAvailabilityDialog(block: block),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  String _formatMinutes(int minutes) {
-    final hour = minutes ~/ 60;
-    final min = minutes % 60;
-    return '${hour.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
-  }
-
-  void _showAvailabilityDialog({AvailabilityBlock? block}) {
-    final startController = TextEditingController(
-      text: block != null ? _formatMinutes(block.startMinute) : '08:00',
-    );
-    final endController = TextEditingController(
-      text: block != null ? _formatMinutes(block.endMinute) : '22:00',
-    );
-    final notesController = TextEditingController(text: block?.notes ?? '');
-    
-    String selectedDay = (block?.dayOfWeek ?? 1).toString();
-    bool isAvailable = block?.isAvailable ?? true;
-    bool isRecurring = block?.isRecurring ?? true;
+  void _showDialog(BuildContext context, {required bool defaultAvailable}) {
+    var isAvailable = defaultAvailable;
+    var recurring = false;
+    var start = DateTime.now();
+    var end = DateTime.now().add(const Duration(hours: 4));
+    final days = <int>{};
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(block == null ? 'Add Availability' : 'Edit Availability'),
-        content: SizedBox(
-          width: 400,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: selectedDay,
-                  items: _days.asMap().entries.map((e) => 
-                    DropdownMenuItem(value: (e.key + 1).toString(), child: Text(e.value))
-                  ).toList(),
-                  onChanged: (val) => setState(() => selectedDay = val!),
-                  decoration: const InputDecoration(labelText: 'Day of Week'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDialog) => AlertDialog(
+          title: const Text('Set Availability'),
+          content: SizedBox(
+            width: 400,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Available')),
+                    ButtonSegment(value: false, label: Text('Unavailable')),
+                  ],
+                  selected: {isAvailable},
+                  onSelectionChanged: (s) =>
+                      setDialog(() => isAvailable = s.first),
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: startController,
-                  decoration: const InputDecoration(
-                    labelText: 'Start Time',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.access_time_outlined),
-                  ),
-                  readOnly: true,
-                  onTap: () => _selectTime(context, startController),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: endController,
-                  decoration: const InputDecoration(
-                    labelText: 'End Time',
-                    border: OutlineInputBorder(),
-                    suffixIcon: const Icon(Icons.access_time_outlined),
-                  ),
-                  readOnly: true,
-                  onTap: () => _selectTime(context, endController),
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Available'),
-                  value: isAvailable,
-                  onChanged: (val) => setState(() => isAvailable = val),
-                ),
-                SwitchListTile(
-                  title: const Text('Recurring'),
-                  value: isRecurring,
-                  onChanged: (val) => setState(() => isRecurring = val),
-                ),
-                TextFormField(
-                  controller: notesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes (optional)',
-                    border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                        context: ctx2,
+                        initialDate: start,
+                        firstDate: DateTime.now(),
+                        lastDate:
+                            DateTime.now().add(const Duration(days: 365)));
+                    if (d != null) {
+                      setDialog(() => start =
+                          DateTime(d.year, d.month, d.day, start.hour, start.minute));
+                    }
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(labelText: 'Date'),
+                    child: Text(DateFormat('EEE, MMM d, yyyy').format(start)),
                   ),
                 ),
-              ],
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                      child: InkWell(
+                    onTap: () async {
+                      final t = await showTimePicker(
+                          context: ctx2,
+                          initialTime:
+                              TimeOfDay.fromDateTime(start));
+                      if (t != null) {
+                        setDialog(() => start = DateTime(start.year,
+                            start.month, start.day, t.hour, t.minute));
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration:
+                          const InputDecoration(labelText: 'From'),
+                      child: Text(DateFormat('HH:mm').format(start)),
+                    ),
+                  )),
+                  const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8), child: Text('→')),
+                  Expanded(
+                      child: InkWell(
+                    onTap: () async {
+                      final t = await showTimePicker(
+                          context: ctx2,
+                          initialTime:
+                              TimeOfDay.fromDateTime(end));
+                      if (t != null) {
+                        setDialog(() => end = DateTime(start.year,
+                            start.month, start.day, t.hour, t.minute));
+                        if (!end.isAfter(start)) {
+                          end = end.add(const Duration(days: 1));
+                        }
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(labelText: 'To'),
+                      child: Text(DateFormat('HH:mm').format(end)),
+                    ),
+                  )),
+                ]),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: recurring,
+                  title: const Text('Repeat weekly on:',
+                      style: TextStyle(fontSize: 13)),
+                  onChanged: (v) => setDialog(() => recurring = v ?? false),
+                ),
+                if (recurring)
+                  Wrap(
+                    spacing: 4,
+                    children: List.generate(7, (i) {
+                      final day = i + 1;
+                      final label =
+                          ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i];
+                      return FilterChip(
+                        label: Text(label, style: const TextStyle(fontSize: 11)),
+                        selected: days.contains(day),
+                        onSelected: (sel) => setDialog(() {
+                          sel ? days.add(day) : days.remove(day);
+                        }),
+                      );
+                    }),
+                  ),
+              ]),
             ),
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx2),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                _submit(
+                  isAvailable: isAvailable,
+                  start: start,
+                  end: end.isAfter(start)
+                      ? end
+                      : end.add(const Duration(days: 1)),
+                  recurring: recurring,
+                  recurrenceDays: days.toList()..sort(),
+                );
+                Navigator.pop(ctx2);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              final newBlock = AvailabilityBlock(
-                id: block?.id ?? UuidGenerator().generate(),
-                dayOfWeek: int.parse(selectedDay),
-                startMinute: _parseTimeToMinutes(startController.text),
-                endMinute: _parseTimeToMinutes(endController.text),
-                isAvailable: isAvailable,
-                isRecurring: isRecurring,
-                notes: notesController.text.trim(),
-              );
-              
-              setState(() {
-                if (block == null) {
-                  _availabilityBlocks.add(newBlock);
-                } else {
-                  _availabilityBlocks[_availabilityBlocks.indexOf(block)] = newBlock;
-                }
-              });
-              
-              Navigator.pop(context);
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
-
-  Future<void> _selectTime(BuildContext context, TextEditingController controller) async {
-    final parts = controller.text.split(':');
-    final result = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
-        hour: int.tryParse(parts[0]) ?? 8,
-        minute: int.tryParse(parts[1]) ?? 0,
-      ),
-    );
-    if (result != null) {
-      setState(() {
-        controller.text = '${result.hour.toString().padLeft(2, '0')}:${result.minute.toString().padLeft(2, '0')}';
-      });
-    }
-  }
-
-  int _parseTimeToMinutes(String time) {
-    final parts = time.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
-  }
 }
-
-class AvailabilityBlock {
-  final String id;
-  final int dayOfWeek; // 1=Monday, 7=Sunday
-  final int startMinute;
-  final int endMinute;
-  final bool isAvailable;
-  final bool isRecurring;
-  final String? notes;
-
-  AvailabilityBlock({
-    required this.id,
-    required this.dayOfWeek,
-    required this.startMinute,
-    required this.endMinute,
-    required this.isAvailable,
-    required this.isRecurring,
-    this.notes,
-  });
-}
-
-class UuidGenerator {
-  String generate() => DateTime.now().millisecondsSinceEpoch.toString();
-}
-

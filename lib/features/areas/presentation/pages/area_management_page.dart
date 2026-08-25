@@ -62,7 +62,8 @@ class AreaManagementPage extends ConsumerWidget {
               backgroundColor: area.isActive
                   ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: Text(area.name.substring(0, 1)),
+              child: _iconFor(area) ??
+                  Text(area.name.isNotEmpty ? area.name.substring(0, 1) : '?'),
             ),
             title: Text(area.name),
             subtitle: Text(area.description.isEmpty ? 'No description' : area.description),
@@ -85,63 +86,102 @@ class AreaManagementPage extends ConsumerWidget {
     );
   }
 
+  Widget? _iconFor(ReceptionArea area) {
+    if (area.icon == null) return null;
+    final icon = _iconChoices[area.icon];
+    if (icon == null) return null;
+    return Icon(icon, color: Colors.white);
+  }
+
   void _toggleActive(WidgetRef ref, ReceptionArea area, bool value) {
-    final updated = ReceptionArea(
-      areaId: area.areaId,
-      name: area.name,
-      description: area.description,
-      orderIndex: area.orderIndex,
-      isActive: value,
-    );
+    final updated = area.copyWith(isActive: value);
     ref.read(areaActionsProvider).updateArea(updated);
   }
+
+  static const _iconChoices = <String, IconData>{
+    'window': Icons.grid_view_outlined,
+    'approvals': Icons.fact_check_outlined,
+    'error': Icons.error_outline,
+    'clinics': Icons.local_hospital_outlined,
+    'operations': Icons.settings_outlined,
+    'pharmacy': Icons.medication_outlined,
+    'emergency': Icons.emergency_outlined,
+    'reception': Icons.desk,
+    'info': Icons.info_outline,
+  };
 
   void _showAreaDialog(BuildContext context, WidgetRef ref, ReceptionArea? area) {
     final nameController = TextEditingController(text: area?.name ?? '');
     final descController = TextEditingController(text: area?.description ?? '');
+    String? selectedIcon = area?.icon;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(area == null ? 'Add Area' : 'Edit Area'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(labelText: 'Description'),
+      builder: (context) => StatefulBuilder(
+        builder: (ctx2, setDialog) => AlertDialog(
+          title: Text(area == null ? 'Add Area' : 'Edit Area'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descController,
+                decoration: const InputDecoration(labelText: 'Description'),
+              ),
+              const SizedBox(height: 16),
+              const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Icon (optional)',
+                      style: TextStyle(fontSize: 12))),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: _iconChoices.entries.map((e) {
+                  final sel = selectedIcon == e.key;
+                  return ChoiceChip(
+                    label: Icon(e.value,
+                        size: 18,
+                        color: sel ? Colors.white : null),
+                    selected: sel,
+                    selectedColor:
+                        Theme.of(ctx2).colorScheme.primary,
+                    onSelected: (_) =>
+                        setDialog(() => selectedIcon = e.key),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () {
+                final newArea = ReceptionArea(
+                  areaId: area?.areaId ?? const Uuid().v4(),
+                  name: nameController.text.trim(),
+                  description: descController.text.trim(),
+                  orderIndex: area?.orderIndex ?? 0,
+                  isActive: area?.isActive ?? true,
+                  icon: selectedIcon,
+                );
+
+                if (nameController.text.trim().isNotEmpty) {
+                  if (area == null) {
+                    ref.read(areaActionsProvider).createArea(newArea);
+                  } else {
+                    ref.read(areaActionsProvider).updateArea(newArea);
+                  }
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              final newArea = ReceptionArea(
-                areaId: area?.areaId ?? const Uuid().v4(),
-                name: nameController.text.trim(),
-                description: descController.text.trim(),
-                orderIndex: area?.orderIndex ?? 0,
-                isActive: area?.isActive ?? true,
-              );
-
-              if (nameController.text.trim().isNotEmpty) {
-                if (area == null) {
-                  ref.read(areaActionsProvider).createArea(newArea);
-                } else {
-                  ref.read(areaActionsProvider).updateArea(newArea);
-                }
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }

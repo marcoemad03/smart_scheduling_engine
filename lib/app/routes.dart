@@ -9,6 +9,15 @@ import '../features/staffing/presentation/pages/staffing_requirements_page.dart'
 import '../features/settings/presentation/pages/system_settings_page.dart';
 import '../features/availability/presentation/pages/availability_page.dart';
 import '../features/schedules/presentation/pages/weekly_scheduler_page.dart';
+import '../features/schedules/presentation/pages/employee_weekly_schedule_page.dart';
+import '../features/shifts/presentation/pages/shift_template_page.dart';
+import '../features/leaves/presentation/pages/my_leaves_page.dart';
+import '../features/leaves/presentation/pages/admin_leave_requests_page.dart';
+import '../features/swaps/presentation/pages/my_swaps_page.dart';
+import '../features/swaps/presentation/pages/admin_swap_requests_page.dart';
+import '../features/notifications/presentation/pages/notifications_page.dart';
+import '../features/attendance/presentation/pages/my_attendance_page.dart';
+import '../features/attendance/presentation/pages/admin_attendance_page.dart';
 
 class AppRoutes {
   static final router = GoRouter(
@@ -25,12 +34,12 @@ class AppRoutes {
           GoRoute(path: '/admin', name: 'admin', builder: (context, state) => const AdminDashboardPage()),
           GoRoute(path: '/admin/employees', name: 'employees', builder: (context, state) => const Scaffold(body: Center(child: Text('Employees')))),
           GoRoute(path: '/admin/areas', name: 'areas', builder: (context, state) => const AreaManagementPage()),
-          GoRoute(path: '/admin/shifts', name: 'shifts', builder: (context, state) => const Scaffold(body: Center(child: Text('Shifts')))),
+          GoRoute(path: '/admin/shifts', name: 'shifts', builder: (context, state) => const ShiftTemplatePage()),
           GoRoute(path: '/admin/staffing', name: 'staffing', builder: (context, state) => const StaffingRequirementsPage()),
           GoRoute(path: '/admin/schedules', name: 'schedules', builder: (context, state) => const WeeklySchedulerPage()),
-          GoRoute(path: '/admin/leaves', name: 'leaves', builder: (context, state) => const Scaffold(body: Center(child: Text('Leave Requests')))),
-          GoRoute(path: '/admin/swaps', name: 'swaps', builder: (context, state) => const Scaffold(body: Center(child: Text('Swap Requests')))),
-          GoRoute(path: '/admin/attendance', name: 'attendance', builder: (context, state) => const Scaffold(body: Center(child: Text('Attendance')))),
+          GoRoute(path: '/admin/leaves', name: 'leaves', builder: (context, state) => const AdminLeaveRequestsPage()),
+          GoRoute(path: '/admin/swaps', name: 'swaps', builder: (context, state) => const AdminSwapRequestsPage()),
+          GoRoute(path: '/admin/attendance', name: 'attendance', builder: (context, state) => const AdminAttendancePage()),
           GoRoute(path: '/admin/settings', name: 'settings', builder: (context, state) => const SystemSettingsPage()),
         ],
       ),
@@ -38,10 +47,12 @@ class AppRoutes {
         builder: (context, state, child) => EmployeeDashboardShell(child: child),
         routes: [
           GoRoute(path: '/employee', name: 'employee', builder: (context, state) => const EmployeeDashboardPage()),
-          GoRoute(path: '/employee/schedule', name: 'my_schedule', builder: (context, state) => const Scaffold(body: Center(child: Text('Schedule')))),
+          GoRoute(path: '/employee/schedule', name: 'my_schedule', builder: (context, state) => const EmployeeWeeklySchedulePage()),
           GoRoute(path: '/employee/availability', name: 'availability', builder: (context, state) => const AvailabilityPage()),
-          GoRoute(path: '/employee/leaves', name: 'my_leaves', builder: (context, state) => const Scaffold(body: Center(child: Text('My Leaves')))),
-          GoRoute(path: '/employee/swaps', name: 'my_swaps', builder: (context, state) => const Scaffold(body: Center(child: Text('My Swaps')))),
+          GoRoute(path: '/employee/leaves', name: 'my_leaves', builder: (context, state) => const MyLeavesPage()),
+          GoRoute(path: '/employee/swaps', name: 'my_swaps', builder: (context, state) => const MySwapsPage()),
+          GoRoute(path: '/employee/attendance', name: 'my_attendance', builder: (context, state) => const MyAttendancePage()),
+          GoRoute(path: '/employee/notifications', name: 'notifications', builder: (context, state) => const NotificationsPage()),
         ],
       ),
     ],
@@ -105,6 +116,7 @@ class EmployeeDashboardShell extends StatelessWidget {
       {'icon': Icons.access_time_outlined, 'label': 'Availability', 'route': '/employee/availability'},
       {'icon': Icons.event_available_outlined, 'label': 'Leaves', 'route': '/employee/leaves'},
       {'icon': Icons.swap_horiz_outlined, 'label': 'Swaps', 'route': '/employee/swaps'},
+      {'icon': Icons.fact_check_outlined, 'label': 'Attendance', 'route': '/employee/attendance'},
     ];
 
     int selectedIndex = 0;

@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
+import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 import 'package:reception_workforce_scheduler/features/availability/domain/entities/availability_block.dart';
@@ -65,13 +66,15 @@ class ConflictDetector {
         existing.where((a) => a.id != assignment.id).toList();
 
     conflicts.addAll(_detectEmployeeTimeOverlap(assignment, others));
-    conflicts.addAll(_detectAreaTimeOverlap(assignment, others));
+    // NOTE: multiple employees may legitimately share an area simultaneously
+    // (configurable staffing counts), so same-area overlap is NOT a conflict.
     conflicts.addAll(_detectRestPeriodViolation(assignment, others));
     conflicts.addAll(_detectMaxHoursViolation(assignment, others));
     conflicts.addAll(_detectAvailabilityConflict(assignment));
     conflicts.addAll(_detectLeaveConflict(assignment));
     conflicts.addAll(_detectInactiveArea(assignment));
     conflicts.addAll(_detectNotQualifiedArea(assignment));
+    conflicts.addAll(_detectConsecutiveDays(assignment, others));
 
     return conflicts;
   }
@@ -90,21 +93,33 @@ class ConflictDetector {
     List<ScheduleAssignment> assignments,
   ) {
     final conflicts = <ScheduleConflict>[];
-    for (final req in staffingRequirements) {
-      final dayAssignments = assignments.where((a) {
-        final weekday = a.scheduledDate.weekday;
-        return a.areaId == req.areaId && weekday == req.dayOfWeek;
-      }).toList();
-      if (dayAssignments.length < req.requiredCount) {
-        conflicts.add(ScheduleConflict(
-          id: const Uuid().v4(),
-          type: ConflictType.staffingNotSatisfied,
-          severity: ConflictSeverity.warning,
-          areaId: req.areaId,
-          message:
-              'Staffing requirement not met for area on day ${req.dayOfWeek}: ${dayAssignments.length}/${req.requiredCount} assigned',
-          isOverrideAllowed: true,
-        ));
+    if (assignments.isEmpty || staffingRequirements.isEmpty) {
+      return conflicts;
+    }
+    final calculator = const CoverageCalculator();
+    final weekStart = DateTimeUtils.getStartOfWeek(
+        assignments.map((a) => a.scheduledDate).reduce(
+            (a, b) => a.isBefore(b) ? a : b));
+    final week = calculator.calculateForWeek(
+      weekStart: weekStart,
+      assignments: assignments,
+      requirements: staffingRequirements,
+    );
+    for (final day in week.days) {
+      for (final interval in day.intervals) {
+        if (interval.missingCount > 0) {
+          final dateLabel =
+              '${day.date.year}-${day.date.month.toString().padLeft(2, '0')}-${day.date.day.toString().padLeft(2, '0')}';
+          conflicts.add(ScheduleConflict(
+            id: const Uuid().v4(),
+            type: ConflictType.staffingNotSatisfied,
+            severity: ConflictSeverity.warning,
+            areaId: interval.areaId,
+            message:
+                'Staffing shortage on $dateLabel in area "${_getArea(interval.areaId)?.name ?? interval.areaId}" (${interval.scheduledCount}/${interval.requiredCount} covered)',
+            isOverrideAllowed: true,
+          ));
+        }
       }
     }
     return conflicts;
@@ -129,30 +144,6 @@ class ConflictDetector {
         assignmentId1: newAssignment.id,
         assignmentId2: existing.id,
         message: 'Employee already scheduled during this time',
-      ));
-    }
-    return conflicts;
-  }
-
-  List<ScheduleConflict> _detectAreaTimeOverlap(
-    ScheduleAssignment newAssignment,
-    List<ScheduleAssignment> existing,
-  ) {
-    final conflicts = <ScheduleConflict>[];
-    final overlapping = existing.where(
-      (a) =>
-          a.areaId == newAssignment.areaId &&
-          newAssignment.overlapsWith(a),
-    );
-    for (final existing in overlapping) {
-      conflicts.add(ScheduleConflict(
-        id: const Uuid().v4(),
-        type: ConflictType.areaTimeOverlap,
-        severity: ConflictSeverity.error,
-        areaId: newAssignment.areaId,
-        assignmentId1: newAssignment.id,
-        assignmentId2: existing.id,
-        message: 'Area already assigned to another employee during this time',
       ));
     }
     return conflicts;
@@ -271,6 +262,59 @@ class ConflictDetector {
       ));
     }
     return conflicts;
+  }
+
+  List<ScheduleConflict> _detectConsecutiveDays(
+    ScheduleAssignment newAssignment,
+    List<ScheduleAssignment> existing,
+  ) {
+    final limit = settings.maxConsecutiveWorkingDays;
+    if (limit <= 0) return [];
+
+    final dates = <DateTime>{
+      DateTime(
+        newAssignment.scheduledDate.year,
+        newAssignment.scheduledDate.month,
+        newAssignment.scheduledDate.day,
+      ),
+      ...existing
+          .where((a) => a.employeeId == newAssignment.employeeId)
+          .map((a) => DateTime(
+                a.scheduledDate.year,
+                a.scheduledDate.month,
+                a.scheduledDate.day,
+              )),
+    }.toList()
+      ..sort();
+
+    // Walk backwards from the assignment date to measure the streak length.
+    var streak = 1;
+    final target = DateTime(
+      newAssignment.scheduledDate.year,
+      newAssignment.scheduledDate.month,
+      newAssignment.scheduledDate.day,
+    );
+    var cursor = target;
+    final dateSet = dates.toSet();
+    while (dateSet.contains(cursor.subtract(const Duration(days: 1)))) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      streak++;
+    }
+
+    if (streak > limit) {
+      return [
+        ScheduleConflict(
+          id: const Uuid().v4(),
+          type: ConflictType.consecutiveDaysExceeded,
+          severity: ConflictSeverity.warning,
+          employeeId: newAssignment.employeeId,
+          assignmentId1: newAssignment.id,
+          message:
+              'Employee works $streak consecutive days (max $limit allowed)',
+        )
+      ];
+    }
+    return [];
   }
 
   List<ScheduleConflict> _detectInactiveArea(

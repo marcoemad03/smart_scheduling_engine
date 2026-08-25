@@ -32,6 +32,7 @@ class AreaRemoteDataSource {
       'description': area.description,
       'orderIndex': maxIndex + 1,
       'isActive': area.isActive,
+      'icon': area.icon,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -43,6 +44,7 @@ class AreaRemoteDataSource {
       'description': area.description,
       'orderIndex': area.orderIndex,
       'isActive': area.isActive,
+      'icon': area.icon,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -69,6 +71,7 @@ class AreaModel {
   final String description;
   final int orderIndex;
   final bool isActive;
+  final String? icon;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -78,6 +81,7 @@ class AreaModel {
     required this.description,
     required this.orderIndex,
     required this.isActive,
+    this.icon,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -85,10 +89,11 @@ class AreaModel {
   factory AreaModel.fromJson(Map<String, dynamic> json) {
     return AreaModel(
       areaId: json['areaId'] as String,
-      name: json['name'] as String,
+      name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
       orderIndex: json['orderIndex'] as int? ?? 0,
       isActive: json['isActive'] as bool? ?? true,
+      icon: json['icon'] as String?,
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (json['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -101,6 +106,7 @@ class AreaModel {
       'description': description,
       'orderIndex': orderIndex,
       'isActive': isActive,
+      'icon': icon,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -113,6 +119,7 @@ class AreaModel {
       description: description,
       orderIndex: orderIndex,
       isActive: isActive,
+      icon: icon,
     );
   }
 }

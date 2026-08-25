@@ -1,78 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-class Employee {
-  final String employeeId;
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String phone;
-  final DateTime hireDate;
-  final double maxWeeklyHours;
-  final List<String> preferredAreas;
-  final bool isActive;
-
-  Employee({
-    required this.employeeId,
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.phone,
-    required this.hireDate,
-    required this.maxWeeklyHours,
-    required this.preferredAreas,
-    required this.isActive,
-  });
-
-  String get fullName => '$firstName $lastName';
-}
-
-class EmployeeListViewModel extends StateNotifier<AsyncValue<List<Employee>>> {
-  EmployeeListViewModel() : super(const AsyncValue.loading()) {
-    _loadEmployees();
-  }
-
-  Future<void> _loadEmployees() async {
-    state = const AsyncValue.loading();
-    // Simulated data
-    await Future.delayed(const Duration(milliseconds: 500));
-    state = AsyncValue.data([
-      Employee(
-        employeeId: 'emp1',
-        firstName: 'John',
-        lastName: 'Smith',
-        email: 'john@hospital.com',
-        phone: '555-1234',
-        hireDate: DateTime(2020, 1, 15),
-        maxWeeklyHours: 40,
-        preferredAreas: ['Emergency', 'Pharmacy'],
-        isActive: true,
-      ),
-      Employee(
-        employeeId: 'emp2',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
-        email: 'sarah@hospital.com',
-        phone: '555-5678',
-        hireDate: DateTime(2019, 6, 10),
-        maxWeeklyHours: 35,
-        preferredAreas: ['Clinics', 'Operations'],
-        isActive: true,
-      ),
-      Employee(
-        employeeId: 'emp3',
-        firstName: 'Michael',
-        lastName: 'Brown',
-        email: 'michael@hospital.com',
-        phone: '555-9012',
-        hireDate: DateTime(2021, 3, 5),
-        maxWeeklyHours: 48,
-        preferredAreas: ['Approvals', 'Window'],
-        isActive: true,
-      ),
-    ]);
-  }
-}
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
+import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
+import 'package:reception_workforce_scheduler/features/employees/data/employees_repository.dart';
+import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 
 class EmployeeListPage extends ConsumerStatefulWidget {
   const EmployeeListPage({Key? key}) : super(key: key);
@@ -83,10 +15,11 @@ class EmployeeListPage extends ConsumerStatefulWidget {
 
 class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
   String _searchTerm = '';
+  bool _showInactive = true;
 
   @override
   Widget build(BuildContext context) {
-    final employeesAsync = ref.watch(employeeListViewModelProvider);
+    final employeesAsync = ref.watch(employeesViewModelProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -103,75 +36,117 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
               ),
             ),
           ),
+          IconButton(
+            tooltip: _showInactive ? 'Hide inactive' : 'Show inactive',
+            icon: Icon(_showInactive
+                ? Icons.visibility
+                : Icons.visibility_off),
+            onPressed: () =>
+                setState(() => _showInactive = !_showInactive),
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.person_add),
+        label: const Text('Add Employee'),
         onPressed: () => _showEmployeeDialog(context, null),
-        child: const Icon(Icons.add),
       ),
       body: employeesAsync.when(
-        data: (employees) => _buildEmployeeList(employees),
+        data: (employees) {
+          final filtered = employees.where((e) {
+            if (!_showInactive && !e.isActive) return false;
+            final q = _searchTerm.toLowerCase();
+            return e.fullName.toLowerCase().contains(q) ||
+                e.email.toLowerCase().contains(q) ||
+                e.employeeCode.toLowerCase().contains(q);
+          }).toList();
+
+          if (filtered.isEmpty) {
+            return const Center(child: Text('No employees found'));
+          }
+
+          final isDesktop = MediaQuery.of(context).size.width > 768;
+          return RefreshIndicator(
+            onRefresh: () async {},
+            child: isDesktop
+                ? ListView(padding: const EdgeInsets.all(16), children: [
+                    _table(context, filtered)
+                  ])
+                : _mobileList(context, filtered),
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('Error: $error')),
       ),
     );
   }
 
-  Widget _buildEmployeeList(List<Employee> employees) {
-    final filtered = employees.where((e) => 
-      e.firstName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
-      e.lastName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
-      e.email.toLowerCase().contains(_searchTerm.toLowerCase())
-    ).toList();
-
-    if (filtered.isEmpty) {
-      return const Center(child: Text('No employees found'));
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth > 768;
-        
-        if (isDesktop) {
-          return _buildDataTable(context, filtered);
-        } else {
-          return _buildMobileList(context, filtered);
-        }
-      }
-    );
-  }
-
-  Widget _buildDataTable(BuildContext context, List<Employee> employees) {
-    return PaginatedDataTable(
+  Widget _table(BuildContext context, List<Employee> employees) {
+    return DataTable(
       columns: const [
+        DataColumn(label: Text('Code')),
         DataColumn(label: Text('Name')),
         DataColumn(label: Text('Email')),
-        DataColumn(label: Text('Hire Date')),
         DataColumn(label: Text('Max Hours')),
+        DataColumn(label: Text('Allowed Areas')),
         DataColumn(label: Text('Status')),
         DataColumn(label: Text('Actions')),
       ],
-      source: EmployeeDataSource(context, employees, ref),
-      rowsPerPage: 10,
+      rows: employees.map((e) {
+        return DataRow(cells: [
+          DataCell(Text(e.employeeCode.isEmpty ? '-' : e.employeeCode)),
+          DataCell(Text(e.fullName)),
+          DataCell(Text(e.email)),
+          DataCell(Text('${e.maxWeeklyHours.toStringAsFixed(0)}h')),
+          DataCell(Text(e.preferredAreas.isEmpty
+              ? 'All areas'
+              : e.preferredAreas.join(', '))),
+          DataCell(_statusChip(context, e.isActive)),
+          DataCell(Row(children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              onPressed: () => _showEmployeeDialog(context, e),
+            ),
+            IconButton(
+              tooltip: e.isActive ? 'Deactivate' : 'Activate',
+              icon: Icon(
+                e.isActive ? Icons.toggle_on : Icons.toggle_off,
+                size: 22,
+                color: e.isActive ? Colors.green : Colors.grey,
+              ),
+              onPressed: () => ref
+                  .read(employeesViewModelProvider.notifier)
+                  .setActive(e, !e.isActive),
+            ),
+          ])),
+        ]);
+      }).toList(),
     );
   }
 
-  Widget _buildMobileList(BuildContext context, List<Employee> employees) {
+  Widget _mobileList(BuildContext context, List<Employee> employees) {
     return ListView.builder(
+      padding: const EdgeInsets.all(12),
       itemCount: employees.length,
       itemBuilder: (context, index) {
         final employee = employees[index];
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              child: Text(employee.firstName.substring(0, 1)),
+              child: Text(employee.firstName.isNotEmpty
+                  ? employee.firstName.substring(0, 1)
+                  : '?'),
             ),
             title: Text(employee.fullName),
-            subtitle: Text('${employee.email} • ${employee.phone}'),
+            subtitle: Text(
+                '${employee.employeeCode} • ${employee.email}\n${employee.maxWeeklyHours.toStringAsFixed(0)}h • ${employee.preferredAreas.isEmpty ? 'All areas' : employee.preferredAreas.join(', ')}'),
+            isThreeLine: true,
             trailing: Switch(
               value: employee.isActive,
-              onChanged: (value) => _toggleEmployeeStatus(employee, value),
+              onChanged: (value) => ref
+                  .read(employeesViewModelProvider.notifier)
+                  .setActive(employee, value),
             ),
             onTap: () => _showEmployeeDialog(context, employee),
           ),
@@ -180,128 +155,181 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
     );
   }
 
-  void _toggleEmployeeStatus(Employee employee, bool value) {
-    // Update employee status
+  Widget _statusChip(BuildContext context, bool isActive) {
+    return Chip(
+      label: Text(isActive ? 'Active' : 'Inactive'),
+      backgroundColor:
+          isActive ? Colors.green.withOpacity(0.15) : Colors.grey.withOpacity(0.2),
+    );
   }
 
-  void _showEmployeeDialog(BuildContext context, Employee? employee) {
-    final firstNameController = TextEditingController(text: employee?.firstName ?? '');
-    final lastNameController = TextEditingController(text: employee?.lastName ?? '');
+  void _showEmployeeDialog(BuildContext context, Employee? employee) async {
+    final vm = ref.read(employeesViewModelProvider.notifier);
+    final areas = await vm.loadAreas();
+
+    if (!mounted) return;
+    final codeController = TextEditingController(
+        text: employee?.employeeCode ?? await vm.nextEmployeeCode());
+    final firstNameController =
+        TextEditingController(text: employee?.firstName ?? '');
+    final lastNameController =
+        TextEditingController(text: employee?.lastName ?? '');
     final emailController = TextEditingController(text: employee?.email ?? '');
     final phoneController = TextEditingController(text: employee?.phone ?? '');
-    final maxHoursController = TextEditingController(text: employee?.maxWeeklyHours.toString() ?? '40');
+    final maxHoursController = TextEditingController(
+        text: employee?.maxWeeklyHours.toStringAsFixed(0) ?? '48');
+    final notesController = TextEditingController(text: employee?.notes ?? '');
+    var allowedAreas = Set<String>.from(employee?.preferredAreas ?? const []);
+    var hireDate = employee?.hireDate ?? DateTime.now();
+    final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(employee == null ? 'Add Employee' : 'Edit Employee'),
-        content: SizedBox(
-          width: 400,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: firstNameController,
-                  decoration: const InputDecoration(labelText: 'First Name'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: lastNameController,
-                  decoration: const InputDecoration(labelText: 'Last Name'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: maxHoursController,
-                  decoration: const InputDecoration(labelText: 'Max Weekly Hours'),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDialog) => AlertDialog(
+          title:
+              Text(employee == null ? 'Add Employee' : 'Edit Employee'),
+          content: SizedBox(
+            width: 440,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: firstNameController,
+                        decoration:
+                            const InputDecoration(labelText: 'First Name *'),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Required' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: lastNameController,
+                        decoration:
+                            const InputDecoration(labelText: 'Last Name *'),
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Required' : null,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: codeController,
+                    decoration: const InputDecoration(
+                        labelText: 'Employee Code'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: emailController,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: maxHoursController,
+                        decoration: const InputDecoration(
+                            labelText: 'Max Weekly Hours'),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: InputDecorator(
+                        decoration:
+                            const InputDecoration(labelText: 'Hire Date'),
+                        child: InkWell(
+                          onTap: () async {
+                            final d = await showDatePicker(
+                              context: ctx2,
+                              initialDate: hireDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime.now(),
+                            );
+                            if (d != null) setDialog(() => hireDate = d);
+                          },
+                          child: Text(DateFormat('MMM d, yyyy')
+                              .format(hireDate)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Allowed Areas',
+                          style: TextStyle(fontWeight: FontWeight.w600))),
+                  const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Leave all unchecked to allow every area.',
+                          style: TextStyle(fontSize: 11, color: Colors.grey))),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: -6,
+                    children: areas.map((ReceptionArea a) {
+                      final selected = allowedAreas.contains(a.areaId);
+                      return FilterChip(
+                        label: Text(a.name),
+                        selected: selected,
+                        onSelected: (sel) => setDialog(() {
+                          sel
+                              ? allowedAreas.add(a.areaId)
+                              : allowedAreas.remove(a.areaId);
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                        labelText: 'Notes', alignLabelWithHint: true),
+                    maxLines: 3,
+                  ),
+                ]),
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx2),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                final saved = Employee(
+                  id: employee?.id ?? const Uuid().v4(),
+                  firstName: firstNameController.text.trim(),
+                  lastName: lastNameController.text.trim(),
+                  email: emailController.text.trim(),
+                  phone: phoneController.text.trim(),
+                  hireDate: hireDate,
+                  maxWeeklyHours:
+                      double.tryParse(maxHoursController.text) ?? 48,
+                  preferredAreas: allowedAreas.toList(),
+                  isActive: employee?.isActive ?? true,
+                  employeeCode: codeController.text.trim(),
+                  notes: notesController.text.trim(),
+                  createdAt: employee?.createdAt ?? DateTime.now(),
+                );
+                ref.read(employeesViewModelProvider.notifier).save(saved);
+                Navigator.pop(ctx2);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(employee == null ? 'Employee added' : 'Employee updated')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 }
-
-final employeeListViewModelProvider = 
-    StateNotifierProvider<EmployeeListViewModel, AsyncValue<List<Employee>>>(
-  (ref) => EmployeeListViewModel(),
-);
-
-class EmployeeDataSource extends DataTableSource {
-  final BuildContext context;
-  final List<Employee> employees;
-  final WidgetRef ref;
-
-  EmployeeDataSource(this.context, this.employees, this.ref);
-
-  @override
-  DataRow? getRow(int index) {
-    if (index >= employees.length) return null;
-    final employee = employees[index];
-    return DataRow(
-      cells: [
-        DataCell(Text(employee.fullName)),
-        DataCell(Text(employee.email)),
-        DataCell(Text(employee.hireDate.toLocal().toString().split(' ')[0])),
-        DataCell(Text('${employee.maxWeeklyHours.toInt()}h')),
-        DataCell(Chip(
-          label: Text(employee.isActive ? 'Active' : 'Inactive'),
-          backgroundColor: employee.isActive 
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-        )),
-        DataCell(Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () {},
-              iconSize: 18,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () {},
-              iconSize: 18,
-            ),
-          ],
-        )),
-      ],
-    );
-  }
-
-  @override
-  bool get isRowCountApproximate => false;
-
-  @override
-  int get rowCount => employees.length;
-
-  @override
-  int get selectedRowCount => 0;
-}
-
-final employeeRepositoryProvider = Provider((ref) => null);
-
