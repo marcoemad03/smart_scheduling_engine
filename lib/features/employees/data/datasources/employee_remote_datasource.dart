@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:reception_workforce_scheduler/core/errors/exceptions.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 
 class EmployeeRemoteDataSource {

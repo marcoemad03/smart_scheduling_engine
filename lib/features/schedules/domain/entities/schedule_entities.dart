@@ -1,3 +1,5 @@
+import 'package:reception_workforce_scheduler/core/constants/enums.dart';
+
 class ScheduleAssignment {
   final String id;
   final String employeeId;
@@ -6,6 +8,12 @@ class ScheduleAssignment {
   final DateTime endDateTime;
   final String? shiftTemplateId;
   final DateTime scheduledDate;
+  final AssignmentStatus status;
+  final String? notes;
+  final String createdBy;
+  final String updatedBy;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   ScheduleAssignment({
     required this.id,
@@ -15,15 +23,62 @@ class ScheduleAssignment {
     required this.endDateTime,
     this.shiftTemplateId,
     required this.scheduledDate,
-  });
+    this.status = AssignmentStatus.draft,
+    this.notes,
+    required this.createdBy,
+    required this.updatedBy,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   Duration get duration => endDateTime.difference(startDateTime);
 
-  bool get isOvernight => endDateTime.isAfter(DateTime(endDateTime.year, endDateTime.month, endDateTime.day));
+  bool get isOvernight => endDateTime.day != startDateTime.day ||
+      endDateTime.isBefore(startDateTime);
+
+  bool get isLongShift => duration.inHours >= 12;
 
   bool overlapsWith(ScheduleAssignment other) {
-    return startDateTime.isBefore(other.endDateTime) && other.startDateTime.isBefore(endDateTime);
+    return startDateTime.isBefore(other.endDateTime) &&
+        other.startDateTime.isBefore(endDateTime);
   }
+
+  ScheduleAssignment copyWith({
+    String? id,
+    String? employeeId,
+    String? areaId,
+    DateTime? startDateTime,
+    DateTime? endDateTime,
+    String? shiftTemplateId,
+    DateTime? scheduledDate,
+    AssignmentStatus? status,
+    String? notes,
+    String? updatedBy,
+    DateTime? updatedAt,
+  }) {
+    return ScheduleAssignment(
+      id: id ?? this.id,
+      employeeId: employeeId ?? this.employeeId,
+      areaId: areaId ?? this.areaId,
+      startDateTime: startDateTime ?? this.startDateTime,
+      endDateTime: endDateTime ?? this.endDateTime,
+      shiftTemplateId: shiftTemplateId ?? this.shiftTemplateId,
+      scheduledDate: scheduledDate ?? this.scheduledDate,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      createdBy: createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+    );
+  }
+}
+
+enum AssignmentStatus {
+  draft,
+  published,
+  overridden,
 }
 
 class WeeklySchedule {
@@ -31,7 +86,7 @@ class WeeklySchedule {
   final DateTime weekStartDate;
   final DateTime weekEndDate;
   final int version;
-  final dynamic status; // ScheduleStatus
+  final ScheduleStatus status;
   final String createdBy;
   final DateTime? publishedAt;
   final DateTime createdAt;
@@ -45,12 +100,20 @@ class WeeklySchedule {
     required this.status,
     required this.createdBy,
     this.publishedAt,
-    required this.createdAt,
+    DateTime? createdAt,
     required this.assignments,
-  });
+  }) : createdAt = createdAt ?? DateTime.now();
 
   List<ScheduleAssignment> getAssignmentsForEmployee(String employeeId) {
     return assignments.where((a) => a.employeeId == employeeId).toList();
+  }
+
+  List<ScheduleAssignment> getAssignmentsForDay(DateTime day) {
+    return assignments.where((a) =>
+      a.scheduledDate.year == day.year &&
+      a.scheduledDate.month == day.month &&
+      a.scheduledDate.day == day.day
+    ).toList();
   }
 
   double getWeeklyHoursForEmployee(String employeeId) {
@@ -58,6 +121,27 @@ class WeeklySchedule {
     return employeeAssignments.fold<double>(
       0,
       (sum, a) => sum + a.duration.inHours.toDouble(),
+    );
+  }
+
+  WeeklySchedule copyWith({
+    DateTime? weekStartDate,
+    DateTime? weekEndDate,
+    int? version,
+    ScheduleStatus? status,
+    DateTime? publishedAt,
+    List<ScheduleAssignment>? assignments,
+  }) {
+    return WeeklySchedule(
+      id: id,
+      weekStartDate: weekStartDate ?? this.weekStartDate,
+      weekEndDate: weekEndDate ?? this.weekEndDate,
+      version: version ?? this.version,
+      status: status ?? this.status,
+      createdBy: createdBy,
+      publishedAt: publishedAt ?? this.publishedAt,
+      createdAt: createdAt,
+      assignments: assignments ?? this.assignments,
     );
   }
 }

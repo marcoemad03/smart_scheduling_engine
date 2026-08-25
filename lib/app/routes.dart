@@ -8,6 +8,7 @@ import '../features/areas/presentation/pages/area_management_page.dart';
 import '../features/staffing/presentation/pages/staffing_requirements_page.dart';
 import '../features/settings/presentation/pages/system_settings_page.dart';
 import '../features/availability/presentation/pages/availability_page.dart';
+import '../features/schedules/presentation/pages/weekly_scheduler_page.dart';
 
 class AppRoutes {
   static final router = GoRouter(
@@ -26,7 +27,7 @@ class AppRoutes {
           GoRoute(path: '/admin/areas', name: 'areas', builder: (context, state) => const AreaManagementPage()),
           GoRoute(path: '/admin/shifts', name: 'shifts', builder: (context, state) => const Scaffold(body: Center(child: Text('Shifts')))),
           GoRoute(path: '/admin/staffing', name: 'staffing', builder: (context, state) => const StaffingRequirementsPage()),
-          GoRoute(path: '/admin/schedules', name: 'schedules', builder: (context, state) => const Scaffold(body: Center(child: Text('Schedules')))),
+          GoRoute(path: '/admin/schedules', name: 'schedules', builder: (context, state) => const WeeklySchedulerPage()),
           GoRoute(path: '/admin/leaves', name: 'leaves', builder: (context, state) => const Scaffold(body: Center(child: Text('Leave Requests')))),
           GoRoute(path: '/admin/swaps', name: 'swaps', builder: (context, state) => const Scaffold(body: Center(child: Text('Swap Requests')))),
           GoRoute(path: '/admin/attendance', name: 'attendance', builder: (context, state) => const Scaffold(body: Center(child: Text('Attendance')))),

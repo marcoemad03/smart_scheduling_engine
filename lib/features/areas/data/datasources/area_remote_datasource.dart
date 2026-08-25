@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:reception_workforce_scheduler/core/errors/exceptions.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 
 class AreaRemoteDataSource {
@@ -23,8 +22,8 @@ class AreaRemoteDataSource {
 
   Future<void> createArea(ReceptionArea area) async {
     final maxIndexDoc = await firestore.collection('areas').orderBy('orderIndex', descending: true).limit(1).get();
-    final maxIndex = maxIndexDoc.docs.isNotEmpty 
-        ? (maxIndexDoc.docs.first.data() as Map<String, dynamic>)['orderIndex'] as int
+    final maxIndex = maxIndexDoc.docs.isNotEmpty
+        ? maxIndexDoc.docs.first.data()['orderIndex'] as int
         : 0;
     
     await firestore.collection('areas').doc(area.areaId).set({

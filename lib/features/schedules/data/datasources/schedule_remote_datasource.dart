@@ -8,27 +8,45 @@ class ScheduleRemoteDataSource {
 
   Stream<List<WeeklyScheduleModel>> getAllSchedules() {
     return firestore.collection('weeklySchedules').snapshots().map(
-      (snapshot) => snapshot.docs
-          .map((doc) => WeeklyScheduleModel.fromJson(doc.data()))
-          .toList(),
-    );
+          (snapshot) => snapshot.docs
+              .map((doc) => WeeklyScheduleModel.fromJson(doc.data()))
+              .toList(),
+        );
   }
 
   Stream<WeeklyScheduleModel?> getScheduleByWeek(DateTime weekStart) {
-    final docId = '${weekStart.year}-${weekStart.month}-${weekStart.day}';
+    final docId = _docId(weekStart);
     return firestore.collection('weeklySchedules').doc(docId).snapshots().map(
-      (doc) => doc.exists ? WeeklyScheduleModel.fromJson(doc.data()!) : null,
-    );
+          (doc) => doc.exists ? WeeklyScheduleModel.fromJson(doc.data()!) : null,
+        );
+  }
+
+  Future<WeeklyScheduleModel?> getScheduleByWeekOnce(DateTime weekStart) async {
+    final docId = _docId(weekStart);
+    final doc =
+        await firestore.collection('weeklySchedules').doc(docId).get();
+    return doc.exists ? WeeklyScheduleModel.fromJson(doc.data()!) : null;
+  }
+
+  Future<List<WeeklyScheduleModel>> getAllSchedulesOnce() async {
+    final snapshot = await firestore.collection('weeklySchedules').get();
+    return snapshot.docs
+        .map((doc) => WeeklyScheduleModel.fromJson(doc.data()))
+        .toList();
   }
 
   Future<void> saveSchedule(WeeklyScheduleModel schedule) async {
-    final docId = '${schedule.weekStartDate.year}-${schedule.weekStartDate.month}-${schedule.weekStartDate.day}';
+    final docId = _docId(schedule.weekStartDate);
     await firestore.collection('weeklySchedules').doc(docId).set(
-      schedule.toJson(),
-    );
+          schedule.toJson(),
+        );
   }
 
   Future<void> deleteSchedule(String scheduleId) async {
     await firestore.collection('weeklySchedules').doc(scheduleId).delete();
+  }
+
+  String _docId(DateTime weekStart) {
+    return '${weekStart.year}-${weekStart.month}-${weekStart.day}';
   }
 }

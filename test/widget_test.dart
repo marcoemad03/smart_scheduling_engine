@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:reception_workforce_scheduler/main.dart';
 
 void main() {
   testWidgets('Placeholder test', (WidgetTester tester) async {

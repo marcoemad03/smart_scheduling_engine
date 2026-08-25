@@ -22,9 +22,9 @@ class WeeklyScheduleModel {
     required this.status,
     required this.createdBy,
     this.publishedAt,
-    required this.createdAt,
+    DateTime? createdAt,
     required this.assignments,
-  });
+  }) : createdAt = createdAt ?? DateTime.now();
 
   factory WeeklyScheduleModel.fromJson(Map<String, dynamic> json) {
     return WeeklyScheduleModel(
@@ -36,12 +36,16 @@ class WeeklyScheduleModel {
         (e) => e.name == (json['status'] as String? ?? 'draft'),
         orElse: () => ScheduleStatus.draft,
       ),
-      createdBy: json['createdBy'] as String,
-      publishedAt: json['publishedAt'] != null ? (json['publishedAt'] as Timestamp).toDate() : null,
-      createdAt: (json['createdAt'] as Timestamp).toDate(),
+      createdBy: json['createdBy'] as String? ?? '',
+      publishedAt: json['publishedAt'] != null
+          ? (json['publishedAt'] as Timestamp).toDate()
+          : null,
+      createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       assignments: (json['assignments'] as List?)
-          ?.map((a) => ScheduleAssignmentModel.fromJson(a as Map<String, dynamic>))
-          .toList() ?? [],
+              ?.map((a) =>
+                  ScheduleAssignmentModel.fromJson(a as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 
@@ -53,7 +57,8 @@ class WeeklyScheduleModel {
       'version': version,
       'status': status.name,
       'createdBy': createdBy,
-      'publishedAt': publishedAt != null ? Timestamp.fromDate(publishedAt!) : null,
+      'publishedAt':
+          publishedAt != null ? Timestamp.fromDate(publishedAt!) : null,
       'createdAt': Timestamp.fromDate(createdAt),
       'assignments': assignments.map((a) => a.toJson()).toList(),
     };
@@ -70,6 +75,22 @@ class WeeklyScheduleModel {
       publishedAt: publishedAt,
       createdAt: createdAt,
       assignments: assignments.map((a) => a.toDomain()).toList(),
+    );
+  }
+
+  factory WeeklyScheduleModel.fromDomain(WeeklySchedule schedule) {
+    return WeeklyScheduleModel(
+      scheduleId: schedule.id,
+      weekStartDate: schedule.weekStartDate,
+      weekEndDate: schedule.weekEndDate,
+      version: schedule.version,
+      status: schedule.status,
+      createdBy: schedule.createdBy,
+      publishedAt: schedule.publishedAt,
+      createdAt: schedule.createdAt,
+      assignments: schedule.assignments
+          .map((a) => ScheduleAssignmentModel.fromDomain(a))
+          .toList(),
     );
   }
 }
