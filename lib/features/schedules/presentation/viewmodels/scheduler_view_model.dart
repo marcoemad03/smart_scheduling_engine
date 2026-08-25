@@ -815,6 +815,20 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
     }).toList();
   }
 
+  /// Applies admin-approved assistant changes to the in-memory DRAFT.
+  /// Persistence still goes through saveDraft/publish - never direct writes.
+  void adoptProposedAssignments(List<ScheduleAssignment> assignments) {
+    if (state.schedule == null) return;
+    final updated =
+        state.schedule!.copyWith(assignments: List.from(assignments));
+    state = state.copyWith(
+      schedule: updated,
+      hasUnsavedChanges: true,
+      selectedAssignment: null,
+    );
+    _recomputeConflicts();
+  }
+
   void changeWeek(int direction) {
     final newStart =
         state.weekStart.add(Duration(days: 7 * direction));

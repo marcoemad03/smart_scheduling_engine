@@ -263,6 +263,8 @@ class RuleBasedCommandInterpreter implements CommandInterpreter {
     return InterpreterResult(commands: commands, notes: notes);
   }
 
+  bool _hasNight(String text) => text.contains('night');
+
   Employee? _findEmployee(String text, List<Employee> employees) {
     for (final e in employees) {
       final first = e.firstName.toLowerCase();

@@ -231,6 +231,19 @@ class ScheduleGenerator {
     return best;
   }
 
+  /// Public scoring entry point for external tools (e.g. the AI assistant):
+  /// returns null when the employee violates any hard constraint for the
+  /// given concrete time window, otherwise the fairness score (lower=better).
+  double? scoreCandidateForWindow(
+    Employee e,
+    DateTime windowStart,
+    DateTime windowEnd,
+    String areaId,
+    List<ScheduleAssignment> working,
+  ) {
+    return scoreCandidate(e, _TimeWindow(windowStart, windowEnd), areaId, working);
+  }
+
   /// Full eligibility check + soft scoring in one pass. Returns null when the
   /// employee violates any hard constraint.
   double? scoreCandidate(Employee e, _TimeWindow slot, String areaId,
