@@ -72,6 +72,7 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
       employees: state.employees,
       areas: state.areas,
       requirements: state.staffingRequirements,
+      shiftTemplates: state.shiftTemplates,
       availabilities: state.availabilities,
       leaves: state.leaves,
       baseSchedule: state.schedule!,

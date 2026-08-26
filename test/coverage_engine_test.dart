@@ -3,6 +3,7 @@ import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/conflict_detector.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
@@ -27,21 +28,37 @@ ScheduleAssignment _assignment({
   );
 }
 
-StaffingRequirementEntity _req({
+/// Builds a requirement whose window comes from a shift template (the same
+/// resolution path the production engines use).
+ResolvedRequirement _req({
   required String areaId,
   int dayOfWeek = 1,
   required int startMinute,
   required int endMinute,
   required int count,
 }) {
-  return StaffingRequirementEntity(
+  final duration = endMinute > startMinute
+      ? endMinute - startMinute
+      : (1440 - startMinute) + endMinute;
+  final template = ShiftTemplateEntity(
+    templateId: 'tpl-$areaId-$startMinute-$endMinute',
+    name: 'T $startMinute',
+    startMinute: startMinute,
+    durationMinutes: duration,
+    isNightShift: endMinute <= startMinute,
+    colorValue: 0xFF000000,
+    isActive: true,
+    createdAt: DateTime(2020),
+    updatedAt: DateTime(2020),
+  );
+  final entity = StaffingRequirementEntity(
     requirementId: 'r-$areaId-$startMinute',
     areaId: areaId,
     dayOfWeek: dayOfWeek,
-    startMinute: startMinute,
-    endMinute: endMinute,
+    shiftTemplateId: template.templateId,
     requiredCount: count,
   );
+  return resolveRequirements([entity], [template]).first;
 }
 
 DateTime _monday() {

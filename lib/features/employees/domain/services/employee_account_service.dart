@@ -114,6 +114,23 @@ class EmployeeAccountService {
     await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
   }
 
+  /// Returns the auth role stored on the login profile ('admin'/'employee').
+  Future<String?> fetchUserRole(String uid) async {
+    final doc = await firestore.collection('users').doc(uid).get();
+    return doc.data()?['role'] as String?;
+  }
+
+  /// Changes the auth role on the login profile. 'admin' grants full
+  /// schedule/employee management access; 'employee' revokes it. The router
+  /// guards re-evaluate as soon as the profile document changes.
+  Future<void> updateUserRole(String uid, String role) async {
+    await firestore
+        .collection('users')
+        .doc(uid)
+        .set({'role': role}, SetOptions(merge: true));
+  }
+}
+
   void dispose() {
     final app = _provisioningApp;
     _provisioningApp = null;

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/schedule_generator.dart';
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
@@ -30,13 +31,29 @@ ReceptionArea _area(String id) => ReceptionArea(
       isActive: true,
     );
 
+/// Templates created for test requirements, keyed by templateId. The
+/// generator resolves requirement windows from these templates.
+final _testTemplates = <String, ShiftTemplateEntity>{};
+
 StaffingRequirementEntity _req(String area, int day, int s, int e, int count) {
+  final duration = e > s ? e - s : (1440 - s) + e;
+  final templateId = 'tpl-$area-$s-$e';
+  _testTemplates[templateId] = ShiftTemplateEntity(
+    templateId: templateId,
+    name: 'T $s',
+    startMinute: s,
+    durationMinutes: duration,
+    isNightShift: e <= s,
+    colorValue: 0xFF000000,
+    isActive: true,
+    createdAt: DateTime(2020),
+    updatedAt: DateTime(2020),
+  );
   return StaffingRequirementEntity(
     requirementId: 'r-$area-$day-$s',
     areaId: area,
     dayOfWeek: day,
-    startMinute: s,
-    endMinute: e,
+    shiftTemplateId: templateId,
     requiredCount: count,
   );
 }
@@ -63,22 +80,23 @@ DateTime _monday() {
   return DateTime(now.year, now.month, now.day - (now.weekday - 1));
 }
 
-ScheduleGenerator _gen({
-  required List<Employee> employees,
-  required List<StaffingRequirementEntity> requirements,
-  SystemSettings? settings,
-  List<ScheduleAssignment> fixed = const [],
-}) {
-  return ScheduleGenerator(
-    settings: settings ?? _settings(),
-    employees: employees,
-    areas: [_area('a'), _area('b')],
-    requirements: requirements,
-    weekStart: _monday(),
-    createdBy: 'test',
-    fixedAssignments: fixed,
-  );
-}
+  ScheduleGenerator _gen({
+    required List<Employee> employees,
+    required List<StaffingRequirementEntity> requirements,
+    SystemSettings? settings,
+    List<ScheduleAssignment> fixed = const [],
+  }) {
+    return ScheduleGenerator(
+      settings: settings ?? _settings(),
+      employees: employees,
+      areas: [_area('a'), _area('b')],
+      requirements: requirements,
+      shiftTemplates: _testTemplates.values.toList(),
+      weekStart: _monday(),
+      createdBy: 'test',
+      fixedAssignments: fixed,
+    );
+  }
 
 void main() {
   test('fully staffs a simple requirement set and stays DRAFT', () {
@@ -153,6 +171,7 @@ void main() {
       employees: [_emp('e1'), _emp('e2')],
       areas: [_area('a')],
       requirements: [_req('a', 1, 480, 900, 1)],
+      shiftTemplates: _testTemplates.values.toList(),
       availabilities: [
         AvailabilityBlock(
           availabilityId: 'av1',

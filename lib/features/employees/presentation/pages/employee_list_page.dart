@@ -391,6 +391,22 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
     var createAccount = isCreate;
     var passwordVisible = false;
 
+    // Auth role ('employee'/'admin') stored on the login profile.
+    var initialRole = 'employee';
+    var selectedRole = 'employee';
+    if (!isCreate && (employee?.hasAccount ?? false)) {
+      try {
+        final current =
+            await accountService.fetchUserRole(employee!.authUid);
+        if (current != null) {
+          initialRole = current;
+          selectedRole = current;
+        }
+      } catch (_) {
+        // Profile unreadable - default to employee (least privilege).
+      }
+    }
+
     String generatePassword() {
       const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
       final rnd = DateTime.now().microsecondsSinceEpoch;
@@ -629,6 +645,33 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
                         onPressed: () => _resetPassword(ctx2, employee),
                       ),
                     ),
+                  if (hasAccount || (isCreate && createAccount)) ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      decoration: InputDecoration(labelText: l10n.roleLabel),
+                      items: [
+                        DropdownMenuItem(
+                            value: 'employee', child: Text(l10n.roleEmployee)),
+                        DropdownMenuItem(
+                            value: 'admin', child: Text(l10n.roleAdmin)),
+                      ],
+                      onChanged: (v) =>
+                          setDialog(() => selectedRole = v ?? 'employee'),
+                    ),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(l10n.roleAdminHint,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
+                    ),
+                  ] else
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(l10n.roleNeedsAccount,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
+                    ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: notesController,
@@ -703,6 +746,20 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
                   createdAt: employee?.createdAt ?? DateTime.now(),
                 );
                 await ref.read(employeesViewModelProvider.notifier).save(saved);
+
+                // Apply role change on the login profile ('admin' grants full
+                // schedule/employee management access, 'employee' revokes it).
+                if (authUid.isNotEmpty && selectedRole != initialRole) {
+                  try {
+                    await accountService.updateUserRole(
+                        authUid, selectedRole);
+                  } catch (err) {
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(l10n.errorPrefix('$err')),
+                      backgroundColor: Colors.orange,
+                    ));
+                  }
+                }
                 messenger.showSnackBar(SnackBar(
                     content: Text(l10n.employeeSaved)));
                 navigator.pop();

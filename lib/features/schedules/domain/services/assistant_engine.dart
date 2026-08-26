@@ -11,6 +11,7 @@ import 'package:reception_workforce_scheduler/features/employees/domain/entities
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 import 'package:reception_workforce_scheduler/features/availability/domain/entities/availability_block.dart';
 import 'package:reception_workforce_scheduler/features/leaves/domain/entities/leave_request.dart';
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 
 /// Executes structured AI commands on an IN-MEMORY COPY of the schedule,
@@ -22,6 +23,7 @@ class AssistantEngine {
   final List<Employee> employees;
   final List<ReceptionArea> areas;
   final List<StaffingRequirementEntity> requirements;
+  final List<ShiftTemplateEntity> shiftTemplates;
   final List<AvailabilityBlock> availabilities;
   final List<LeaveRequest> leaves;
   final WeeklySchedule baseSchedule;
@@ -32,6 +34,7 @@ class AssistantEngine {
     required this.employees,
     required this.areas,
     required this.requirements,
+    this.shiftTemplates = const [],
     this.availabilities = const [],
     this.leaves = const [],
     required this.baseSchedule,
@@ -121,6 +124,7 @@ class AssistantEngine {
             employees: employees,
             areas: areas,
             requirements: requirements,
+            shiftTemplates: shiftTemplates,
             availabilities: availabilities,
             leaves: leaves,
             fixedAssignments: const [],
@@ -145,6 +149,7 @@ class AssistantEngine {
       availabilities: availabilities,
       leaves: leaves,
       staffingRequirements: requirements,
+      shiftTemplates: shiftTemplates,
     );
     final conflictsMap = detector.validateSchedule(assignments);
     final conflicts = <ScheduleConflict>{};
@@ -155,7 +160,7 @@ class AssistantEngine {
     final coverage = const CoverageCalculator().calculateForWeek(
       weekStart: DateTimeUtils.getStartOfWeek(baseSchedule.weekStartDate),
       assignments: assignments,
-      requirements: requirements,
+      requirements: resolveRequirements(requirements, shiftTemplates),
     );
 
     final proposedDraft = baseSchedule.copyWith(assignments: assignments);
@@ -186,6 +191,7 @@ class AssistantEngine {
       employees: employees,
       areas: areas,
       requirements: requirements,
+      shiftTemplates: shiftTemplates,
       availabilities: availabilities,
       leaves: leaves,
       weekStart: baseSchedule.weekStartDate,

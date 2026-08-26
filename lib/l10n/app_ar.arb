@@ -496,6 +496,12 @@
   "accountUnknownError": "تعذر إنشاء حساب الدخول. حاول مرة أخرى.",
   "shiftsThisWeek": "{count} هذا الأسبوع",
   "@shiftsThisWeek": { "placeholders": { "count": { "type": "String" } } },
+  "everyDay": "كل الأيام",
+  "roleLabel": "الدور",
+  "roleEmployee": "موظف",
+  "roleAdmin": "مسؤول",
+  "roleAdminHint": "المسؤول ينشئ ويعدل وينشر الجداول ويدير الموظفين.",
+  "roleNeedsAccount": "اربط حساب دخول لتعيين دور.",
   "filterAllStatuses": "كل الحالات",
   "filterByArea": "كل المناطق",
 

@@ -8,6 +8,7 @@ import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 import 'package:reception_workforce_scheduler/features/employees/data/employees_repository.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
+import 'package:reception_workforce_scheduler/features/employees/domain/services/employee_account_service.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/providers/scheduler_providers.dart';
 
@@ -104,6 +105,22 @@ class _EmployeeDetailsPageState extends ConsumerState<EmployeeDetailsPage> {
           _row(l10n.maxWeeklyHours, '${e.maxWeeklyHours.toStringAsFixed(0)}h'),
           _row(l10n.accountStatusLabel,
               e.hasAccount ? l10n.accountLinked : l10n.accountNotLinked),
+          if (e.hasAccount)
+            FutureBuilder<String?>(
+              future: ref
+                  .read(employeeAccountServiceProvider)
+                  .fetchUserRole(e.authUid),
+              builder: (context, snap) {
+                final role = snap.data;
+                return _row(
+                    l10n.roleLabel,
+                    role == null
+                        ? l10n.notSet
+                        : (role == 'admin'
+                            ? l10n.roleAdmin
+                            : l10n.roleEmployee));
+              },
+            ),
           if (e.notes.isNotEmpty) _row(l10n.notes, e.notes),
         ]),
       ),

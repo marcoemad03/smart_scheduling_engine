@@ -496,6 +496,12 @@
   "accountUnknownError": "Could not create the login account. Please try again.",
   "shiftsThisWeek": "{count} this week",
   "@shiftsThisWeek": { "placeholders": { "count": { "type": "String" } } },
+  "everyDay": "Every day",
+  "roleLabel": "Role",
+  "roleEmployee": "Employee",
+  "roleAdmin": "Admin",
+  "roleAdminHint": "Admins can create, edit and publish schedules and manage employees.",
+  "roleNeedsAccount": "Link a login account to assign a role.",
   "filterAllStatuses": "All statuses",
   "filterByArea": "All areas",
 

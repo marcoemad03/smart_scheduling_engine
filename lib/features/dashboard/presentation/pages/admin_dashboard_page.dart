@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/attendance/data/attendance_repository.dart';
+import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 import 'package:reception_workforce_scheduler/features/attendance/domain/entities/attendance_record.dart';
 import 'package:reception_workforce_scheduler/features/leaves/data/leaves_repository.dart';
 import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
@@ -91,7 +92,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     final todayResult = const CoverageCalculator().calculateForDay(
       day: today,
       assignments: state.schedule?.assignments ?? const [],
-      requirements: state.staffingRequirements,
+      requirements: resolveRequirements(state.staffingRequirements, state.shiftTemplates),
     );
 
     var understaffedAreas = <String>{};
@@ -210,7 +211,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     final todayResult = const CoverageCalculator().calculateForDay(
       day: DateTime.now(),
       assignments: state.schedule?.assignments ?? const [],
-      requirements: state.staffingRequirements,
+      requirements: resolveRequirements(state.staffingRequirements, state.shiftTemplates),
     );
     final areaNames = {for (final a in state.areas) a.areaId: a.name};
     final l10n = AppLocalizations.of(context)!;
@@ -254,7 +255,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                       Padding(
                           padding: const EdgeInsets.all(6),
                           child: Text(
-                              '${areaNames[i.areaId] ?? i.areaId} • ${_hm(i.startMinute)}→${_hm(i.endMinute)}')),
+                              '${areaNames[i.areaId] ?? i.areaId} â€¢ ${_hm(i.startMinute)}â†’${_hm(i.endMinute)}')),
                       Padding(
                           padding: const EdgeInsets.all(6),
                           child: Text('${i.requiredCount}')),

@@ -101,17 +101,36 @@ class AppRoutes {
 }
 
 /// Tracks the signed-in user's role so the router can guard routes.
+/// The role is live-listened: when an admin changes a user's role the
+/// guards re-evaluate immediately without signing in again.
 class AuthRoleNotifier extends ChangeNotifier {
   String? role;
   bool _disposed = false;
-  StreamSubscription? _sub;
+  StreamSubscription? _authSub;
+  StreamSubscription? _roleSub;
 
   AuthRoleNotifier() {
-    _sub = FirebaseAuth.instance.authStateChanges().listen((user) async {
+    _authSub =
+        FirebaseAuth.instance.authStateChanges().listen((user) async {
       if (_disposed) return;
+      await _roleSub?.cancel();
+      _roleSub = null;
       role = null;
       if (user != null) {
         try {
+          // Live-listen so admin-side role changes apply instantly.
+          _roleSub = FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .snapshots()
+              .listen((doc) {
+            if (_disposed) return;
+            final newRole = doc.data()?['role'] as String?;
+            if (newRole != null && newRole != role) {
+              role = newRole;
+              notifyListeners();
+            }
+          });
           final doc = await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
@@ -128,7 +147,8 @@ class AuthRoleNotifier extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _sub?.cancel();
+    _authSub?.cancel();
+    _roleSub?.cancel();
     super.dispose();
   }
 }
