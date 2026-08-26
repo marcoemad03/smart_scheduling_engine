@@ -60,11 +60,13 @@ class ScheduleGenerator {
     final working = [...fixedAssignments];
     final unfilled = <UnfilledSlot>[];
     final warnings = <String>[];
+    final resolved = resolveRequirements(requirements, shiftTemplates);
 
     for (var d = 0; d < 7; d++) {
       final day = start.add(Duration(days: d));
-      final dayReqs =
-          requirements.where((r) => r.dayOfWeek == day.weekday).toList();
+      final dayReqs = resolved
+          .where((r) => r.dayOfWeek == 0 || r.dayOfWeek == day.weekday)
+          .toList();
 
       // Sort hardest-to-fill first: overnight windows, then scarcest areas.
       final sorted = dayReqs.toList()
@@ -129,6 +131,7 @@ class ScheduleGenerator {
       availabilities: availabilities,
       leaves: leaves,
       staffingRequirements: requirements,
+      shiftTemplates: shiftTemplates,
     );
     final conflictsMap = detector.validateSchedule(working);
     final conflicts = <ScheduleConflict>[];
@@ -140,7 +143,7 @@ class ScheduleGenerator {
     final coverageReport = const CoverageCalculator().calculateForWeek(
       weekStart: start,
       assignments: working,
-      requirements: requirements,
+      requirements: resolved,
     );
 
     final hasErrors =
@@ -180,19 +183,9 @@ class ScheduleGenerator {
 
   // ---------------------------------------------------------------- helpers
 
-  _TimeWindow _slotFor(StaffingRequirementEntity req, DateTime day) {
-    // A linked shift template shapes the concrete shift times; otherwise the
-    // requirement window itself defines the shift (overnight aware).
-    final template = req.shiftTemplateId == null
-        ? null
-        : shiftTemplates
-            .where((t) => t.templateId == req.shiftTemplateId)
-            .firstOrNull;
-    if (template != null) {
-      final start = day.add(Duration(minutes: template.startMinute));
-      final end = start.add(Duration(minutes: template.durationMinutes));
-      return _TimeWindow(start, end);
-    }
+  _TimeWindow _slotFor(ResolvedRequirement req, DateTime day) {
+    // The requirement's window comes from its shift template (already
+    // resolved); overnight windows end on the next day.
     final start = day.add(Duration(minutes: req.startMinute));
     final end = req.isOvernightWindow
         ? day.add(Duration(days: 1, minutes: req.endMinute))
@@ -202,7 +195,7 @@ class ScheduleGenerator {
 
   /// How many employees already cover the requirement window based on fixed
   /// assignments, measured by the coverage engine's guaranteed concurrency.
-  int _coveredCount(StaffingRequirementEntity req, DateTime day,
+  int _coveredCount(ResolvedRequirement req, DateTime day,
       List<ScheduleAssignment> assignments) {
     final dayResult = const CoverageCalculator().calculateForDay(
       day: day,

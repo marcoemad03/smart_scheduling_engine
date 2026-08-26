@@ -5,6 +5,7 @@ import 'package:reception_workforce_scheduler/features/schedules/domain/entities
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
 import 'package:reception_workforce_scheduler/features/availability/domain/entities/availability_block.dart';
 import 'package:reception_workforce_scheduler/features/leaves/domain/entities/leave_request.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
@@ -41,6 +42,7 @@ class ConflictDetector {
   final List<AvailabilityBlock> availabilities;
   final List<LeaveRequest> leaves;
   final List<StaffingRequirementEntity> staffingRequirements;
+  final List<ShiftTemplateEntity> shiftTemplates;
 
   ConflictDetector({
     required this.settings,
@@ -49,6 +51,7 @@ class ConflictDetector {
     required this.availabilities,
     required this.leaves,
     required this.staffingRequirements,
+    this.shiftTemplates = const [],
   });
 
   ReceptionArea? _getArea(String areaId) =>
@@ -96,6 +99,11 @@ class ConflictDetector {
     if (assignments.isEmpty || staffingRequirements.isEmpty) {
       return conflicts;
     }
+    final resolved =
+        resolveRequirements(staffingRequirements, shiftTemplates);
+    if (resolved.isEmpty) {
+      return conflicts;
+    }
     final calculator = const CoverageCalculator();
     final weekStart = DateTimeUtils.getStartOfWeek(
         assignments.map((a) => a.scheduledDate).reduce(
@@ -103,7 +111,7 @@ class ConflictDetector {
     final week = calculator.calculateForWeek(
       weekStart: weekStart,
       assignments: assignments,
-      requirements: staffingRequirements,
+      requirements: resolved,
     );
     for (final day in week.days) {
       for (final interval in day.intervals) {

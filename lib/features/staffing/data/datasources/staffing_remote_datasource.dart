@@ -37,14 +37,14 @@ class StaffingRemoteDataSource {
   }
 
   Map<String, dynamic> _toMap(StaffingRequirementEntity r) {
+    // NOTE: shift times are intentionally NOT stored here — the linked
+    // shift template is the single source of truth for start/end.
     return {
       'requirementId': r.requirementId,
       'areaId': r.areaId,
       'dayOfWeek': r.dayOfWeek,
-      'startMinute': r.startMinute,
-      'endMinute': r.endMinute,
-      'requiredCount': r.requiredCount,
       'shiftTemplateId': r.shiftTemplateId,
+      'requiredCount': r.requiredCount,
       'minHoursPerWeek': r.minHoursPerWeek,
       'createdAt': Timestamp.fromDate(r.createdAt),
     };
@@ -54,11 +54,10 @@ class StaffingRemoteDataSource {
     return StaffingRequirementEntity(
       requirementId: data['requirementId'] as String? ?? docId,
       areaId: data['areaId'] as String? ?? '',
+      // 0 = every day (legacy docs default to their stored day or Monday).
       dayOfWeek: data['dayOfWeek'] as int? ?? 1,
-      startMinute: data['startMinute'] as int? ?? 0,
-      endMinute: data['endMinute'] as int? ?? 1440,
+      shiftTemplateId: data['shiftTemplateId'] as String? ?? '',
       requiredCount: data['requiredCount'] as int? ?? 1,
-      shiftTemplateId: data['shiftTemplateId'] as String?,
       minHoursPerWeek: data['minHoursPerWeek'] as int? ?? 0,
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp).toDate()

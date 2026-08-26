@@ -26,6 +26,7 @@ class SchedulerState {
   final List<ReceptionArea> areas;
   final SystemSettings? settings;
   final List<StaffingRequirementEntity> staffingRequirements;
+  final List<ShiftTemplateEntity> shiftTemplates;
   final List<AvailabilityBlock> availabilities;
   final List<LeaveRequest> leaves;
   final Map<String, List<ScheduleConflict>> conflictsByAssignment;
@@ -44,6 +45,7 @@ class SchedulerState {
     this.areas = const [],
     this.settings,
     this.staffingRequirements = const [],
+    this.shiftTemplates = const [],
     this.availabilities = const [],
     this.leaves = const [],
     this.conflictsByAssignment = const {},
@@ -63,6 +65,7 @@ class SchedulerState {
     List<ReceptionArea>? areas,
     SystemSettings? settings,
     List<StaffingRequirementEntity>? staffingRequirements,
+    List<ShiftTemplateEntity>? shiftTemplates,
     List<AvailabilityBlock>? availabilities,
     List<LeaveRequest>? leaves,
     Map<String, List<ScheduleConflict>>? conflictsByAssignment,
@@ -81,6 +84,7 @@ class SchedulerState {
       areas: areas ?? this.areas,
       settings: settings ?? this.settings,
       staffingRequirements: staffingRequirements ?? this.staffingRequirements,
+      shiftTemplates: shiftTemplates ?? this.shiftTemplates,
       availabilities: availabilities ?? this.availabilities,
       leaves: leaves ?? this.leaves,
       conflictsByAssignment: conflictsByAssignment ?? this.conflictsByAssignment,
@@ -119,6 +123,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
         _fetchStaffingRequirements(),
         _fetchAvailabilities(fetchedWeekStart),
         _fetchLeaves(fetchedWeekStart),
+        _fetchShiftTemplates(),
       ]);
 
       // A newer loadWeek call superseded this one - discard the stale data.
@@ -131,6 +136,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
       final staffing = results[4] as List<StaffingRequirementEntity>;
       final availabilities = results[5] as List<AvailabilityBlock>;
       final leaves = results[6] as List<LeaveRequest>;
+      final templates = results[7] as List<ShiftTemplateEntity>;
 
       final newSchedule = schedule ??
           WeeklySchedule(
@@ -153,6 +159,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
         staffingRequirements: staffing,
         availabilities: availabilities,
         leaves: leaves,
+        shiftTemplates: templates,
         hasUnsavedChanges: false,
       );
       _recomputeConflicts();
@@ -234,11 +241,10 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
       return StaffingRequirementEntity(
         requirementId: data['requirementId'] as String? ?? doc.id,
         areaId: data['areaId'] as String? ?? '',
-        dayOfWeek: data['dayOfWeek'] as int? ?? 1,
-        startMinute: data['startMinute'] as int? ?? 0,
-        endMinute: data['endMinute'] as int? ?? 1440,
+        // 0 = applies to every day of the week.
+        dayOfWeek: data['dayOfWeek'] as int? ?? 0,
+        shiftTemplateId: data['shiftTemplateId'] as String? ?? '',
         requiredCount: data['requiredCount'] as int? ?? 1,
-        shiftTemplateId: data['shiftTemplateId'] as String?,
         minHoursPerWeek: data['minHoursPerWeek'] as int? ?? 0,
         createdAt: data['createdAt'] != null
             ? (data['createdAt'] as Timestamp).toDate()
@@ -329,6 +335,7 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
       availabilities: state.availabilities,
       leaves: state.leaves,
       staffingRequirements: state.staffingRequirements,
+      shiftTemplates: state.shiftTemplates,
     );
   }
 
@@ -340,7 +347,8 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
     final coverage = const CoverageCalculator().calculateForWeek(
       weekStart: state.weekStart,
       assignments: state.schedule!.assignments,
-      requirements: state.staffingRequirements,
+      requirements:
+          resolveRequirements(state.staffingRequirements, state.shiftTemplates),
     );
     state = state.copyWith(
       conflictsByAssignment: conflicts,

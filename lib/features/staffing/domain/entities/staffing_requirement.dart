@@ -1,11 +1,21 @@
+import 'package:reception_workforce_scheduler/features/shifts/domain/entities/shift_template.dart';
+
+/// A staffing requirement expressed WITHOUT concrete times: the Admin picks
+/// a reception area, a shift template and a headcount. The shift template is
+/// the single source of truth for the start/end time.
+///
+/// [dayOfWeek] uses ISO weekdays (1=Monday..7=Sunday); `0` means the
+/// requirement applies to EVERY day of the week.
 class StaffingRequirementEntity {
   final String requirementId;
   final String areaId;
+
+  /// ISO weekday (1=Mon..7=Sun) or 0 for every day.
   final int dayOfWeek;
-  final int startMinute;
-  final int endMinute;
+
+  /// Shift template providing the start/end time. Never store times here.
+  final String shiftTemplateId;
   final int requiredCount;
-  final String? shiftTemplateId;
   final int minHoursPerWeek;
   final DateTime createdAt;
 
@@ -13,18 +23,57 @@ class StaffingRequirementEntity {
     required this.requirementId,
     required this.areaId,
     required this.dayOfWeek,
-    this.startMinute = 0,
-    this.endMinute = 1440,
+    required this.shiftTemplateId,
     required this.requiredCount,
-    this.shiftTemplateId,
     this.minHoursPerWeek = 0,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  bool get isOvernightWindow => endMinute <= startMinute;
+  StaffingRequirementEntity copyWith({
+    String? requirementId,
+    String? areaId,
+    int? dayOfWeek,
+    String? shiftTemplateId,
+    int? requiredCount,
+    int? minHoursPerWeek,
+  }) {
+    return StaffingRequirementEntity(
+      requirementId: requirementId ?? this.requirementId,
+      areaId: areaId ?? this.areaId,
+      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+      shiftTemplateId: shiftTemplateId ?? this.shiftTemplateId,
+      requiredCount: requiredCount ?? this.requiredCount,
+      minHoursPerWeek: minHoursPerWeek ?? this.minHoursPerWeek,
+      createdAt: createdAt,
+    );
+  }
+}
 
-  int get windowDurationMinutes =>
-      isOvernightWindow ? (1440 - startMinute) + endMinute : endMinute - startMinute;
+/// A [StaffingRequirementEntity] with its time window resolved from the
+/// linked shift template. This is what the coverage/scheduling engines
+/// consume; times are never persisted on the requirement itself.
+class ResolvedRequirement {
+  final String requirementId;
+  final String areaId;
+  final int dayOfWeek;
+  final int requiredCount;
+  final String shiftTemplateId;
+  final String templateName;
+  final int startMinute;
+  final int endMinute;
+
+  const ResolvedRequirement({
+    required this.requirementId,
+    required this.areaId,
+    required this.dayOfWeek,
+    required this.requiredCount,
+    required this.shiftTemplateId,
+    required this.templateName,
+    required this.startMinute,
+    required this.endMinute,
+  });
+
+  bool get isOvernightWindow => endMinute <= startMinute;
 
   String get windowLabel =>
       '${_formatMinute(startMinute)} → ${_formatMinute(endMinute)}';
@@ -35,42 +84,32 @@ class StaffingRequirementEntity {
     final mins = (m % 60).toString().padLeft(2, '0');
     return '$h:$mins';
   }
+}
 
-  /// Returns the overlap duration in minutes between this requirement window
-  /// and a shift segment expressed in minutes-of-day. Handles overnight windows.
-  int overlapWithSegment(int segStartMinute, int segEndMinute) {
-    int windowOverlap(int winStart, int winEnd) {
-      final s = segStartMinute > winStart ? segStartMinute : winStart;
-      final e = segEndMinute < winEnd ? segEndMinute : winEnd;
-      return e > s ? e - s : 0;
-    }
-
-    if (!isOvernightWindow) {
-      return windowOverlap(startMinute, endMinute);
-    }
-    return windowOverlap(startMinute, 1440) + windowOverlap(0, endMinute);
+/// Resolves requirements against shift templates. Requirements whose
+/// template no longer exists are skipped (the admin UI surfaces them as
+/// broken instead of feeding wrong times into the engines).
+List<ResolvedRequirement> resolveRequirements(
+  List<StaffingRequirementEntity> requirements,
+  List<ShiftTemplateEntity> templates,
+) {
+  final byId = {for (final t in templates) t.templateId: t};
+  final resolved = <ResolvedRequirement>[];
+  for (final r in requirements) {
+    final template = byId[r.shiftTemplateId];
+    if (template == null) continue;
+    final end = template.startMinute + template.durationMinutes;
+    resolved.add(ResolvedRequirement(
+      requirementId: r.requirementId,
+      areaId: r.areaId,
+      dayOfWeek: r.dayOfWeek,
+      requiredCount: r.requiredCount,
+      shiftTemplateId: r.shiftTemplateId,
+      templateName: template.name,
+      // Normalize a 24h+ shift into a (possibly overnight) window.
+      startMinute: template.startMinute % 1440,
+      endMinute: end % 1440 == 0 ? 1440 : end % 1440,
+    ));
   }
-
-  StaffingRequirementEntity copyWith({
-    String? requirementId,
-    String? areaId,
-    int? dayOfWeek,
-    int? startMinute,
-    int? endMinute,
-    int? requiredCount,
-    String? shiftTemplateId,
-    int? minHoursPerWeek,
-  }) {
-    return StaffingRequirementEntity(
-      requirementId: requirementId ?? this.requirementId,
-      areaId: areaId ?? this.areaId,
-      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
-      startMinute: startMinute ?? this.startMinute,
-      endMinute: endMinute ?? this.endMinute,
-      requiredCount: requiredCount ?? this.requiredCount,
-      shiftTemplateId: shiftTemplateId ?? this.shiftTemplateId,
-      minHoursPerWeek: minHoursPerWeek ?? this.minHoursPerWeek,
-      createdAt: createdAt,
-    );
-  }
+  return resolved;
 }

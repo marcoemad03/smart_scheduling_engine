@@ -16,14 +16,16 @@ class CoverageCalculator {
   DayCoverageResult calculateForDay({
     required DateTime day,
     required List<ScheduleAssignment> assignments,
-    required List<StaffingRequirementEntity> requirements,
+    required List<ResolvedRequirement> requirements,
   }) {
     final dayStart = DateTime(day.year, day.month, day.day);
     final nextDayStart = dayStart.add(const Duration(days: 1));
     final weekday = dayStart.weekday;
 
-    final dayRequirements =
-        requirements.where((r) => r.dayOfWeek == weekday).toList();
+    // dayOfWeek == 0 means the requirement applies to every day.
+    final dayRequirements = requirements
+        .where((r) => r.dayOfWeek == 0 || r.dayOfWeek == weekday)
+        .toList();
     if (dayRequirements.isEmpty) {
       return DayCoverageResult(date: dayStart, intervals: []);
     }
@@ -97,7 +99,7 @@ class CoverageCalculator {
   WeekCoverageResult calculateForWeek({
     required DateTime weekStart,
     required List<ScheduleAssignment> assignments,
-    required List<StaffingRequirementEntity> requirements,
+    required List<ResolvedRequirement> requirements,
   }) {
     final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
     final days = List.generate(7, (i) {

@@ -69,7 +69,7 @@ class StaffingViewModel extends StateNotifier<StaffingState> {
           if (byArea != 0) return byArea;
           final byDay = a.dayOfWeek.compareTo(b.dayOfWeek);
           if (byDay != 0) return byDay;
-          return a.startMinute.compareTo(b.startMinute);
+          return a.shiftTemplateId.compareTo(b.shiftTemplateId);
         });
         state = state.copyWith(
           isLoading: false,
