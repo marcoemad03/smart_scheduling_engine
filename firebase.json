@@ -1,1 +1,7 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"smart-scheduling-engine","appId":"1:629885936331:android:104db181c56de66d3af14e","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"smart-scheduling-engine","configurations":{"android":"1:629885936331:android:104db181c56de66d3af14e","web":"1:629885936331:web:05c6920077e497943af14e","windows":"1:629885936331:web:cd0f109e0d6891c83af14e"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "flutter": {"platforms":{"android":{"default":{"projectId":"smart-scheduling-engine","appId":"1:629885936331:android:104db181c56de66d3af14e","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"smart-scheduling-engine","configurations":{"android":"1:629885936331:android:104db181c56de66d3af14e","web":"1:629885936331:web:05c6920077e497943af14e","windows":"1:629885936331:web:cd0f109e0d6891c83af14e"}}}}}
+}
