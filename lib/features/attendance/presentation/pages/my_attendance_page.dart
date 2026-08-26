@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
+import 'package:reception_workforce_scheduler/core/utils/directional_icons.dart';
 import 'package:reception_workforce_scheduler/features/attendance/data/attendance_repository.dart';
 import 'package:reception_workforce_scheduler/features/attendance/domain/entities/attendance_record.dart';
 
@@ -52,23 +54,24 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
   Widget build(BuildContext context) {
     final async = ref.watch(myAttendanceProvider);
     final vm = ref.read(myAttendanceProvider.notifier);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            'My Attendance • ${DateFormat('MMM d').format(_weekStart)} - ${DateFormat('MMM d').format(_weekStart.add(const Duration(days: 6)))}'),
+            '${l10n.myAttendanceTitle} • ${DateFormat('MMM d').format(_weekStart)} - ${DateFormat('MMM d').format(_weekStart.add(const Duration(days: 6)))}'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.chevron_left),
+              icon: Icon(DirectionalIcons.chevronBackward(context)),
               onPressed: () => _changeWeek(-1)),
           IconButton(
-              icon: const Icon(Icons.chevron_right),
+              icon: Icon(DirectionalIcons.chevronForward(context)),
               onPressed: () => _changeWeek(1)),
         ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
         data: (records) {
           final summary = AttendanceSummary.of(records);
           final now = DateTime.now();
@@ -90,21 +93,22 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
                 child: ListTile(
                   leading: const Icon(Icons.timer, color: Colors.green),
                   title: Text(
-                      'Working since ${DateFormat('HH:mm').format(active.actualCheckIn!)}'
-                      '${active.lateMinutes > 0 ? ' (${active.lateMinutes}m late)' : ''}'),
+                      '${l10n.workingSince(DateFormat('HH:mm').format(active.actualCheckIn!))}'
+                      '${active.lateMinutes > 0 ? ' ${l10n.lateMinutesLabel('${active.lateMinutes}')}' : ''}'),
                   subtitle: Text(
-                      'Planned end ${DateFormat('HH:mm').format(active.scheduledEnd)}'),
+                      l10n.plannedEnd(DateFormat('HH:mm').format(active.scheduledEnd))),
                   trailing: FilledButton(
                     onPressed: () => vm.checkOut(active, DateTime.now()),
-                    child: const Text('Check Out'),
+                    child: Text(l10n.checkOut),
                   ),
                 ),
               ),
             Expanded(
               child: records.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                          'No attendance records.\nRecords are generated automatically from published schedules.'))
+                          l10n.noAttendanceRecords,
+                          textAlign: TextAlign.center))
                   : ListView.builder(
                       padding: const EdgeInsets.all(12),
                       itemCount: records.length,
@@ -120,6 +124,7 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
 
   Widget _recordCard(
       BuildContext context, AttendanceRecord r, AttendanceViewModel vm) {
+    final l10n = AppLocalizations.of(context)!;
     final now = DateTime.now();
     final canCheckIn = r.actualCheckIn == null &&
         r.status != AttendanceStatus.absent &&
@@ -138,16 +143,16 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
             _statusChip(r.status),
             if (r.lateMinutes > 0) ...[
               const SizedBox(width: 4),
-              Chip(label: Text('Late ${r.lateMinutes}m')),
+              Chip(label: Text(l10n.lateChip('${r.lateMinutes}'))),
             ],
           ]),
           const SizedBox(height: 8),
           Row(children: [
-            _plannedActual('Planned',
+            _plannedActual(l10n.planned,
                 '${DateFormat('HH:mm').format(r.scheduledStart)} → ${DateFormat('HH:mm').format(r.scheduledEnd)}'),
             const SizedBox(width: 24),
             _plannedActual(
-                'Actual',
+                l10n.actual,
                 r.actualCheckIn == null
                     ? '--:-- → --:--'
                     : '${DateFormat('HH:mm').format(r.actualCheckIn!)} → ${r.actualCheckOut != null ? DateFormat('HH:mm').format(r.actualCheckOut!) : '…'}'),
@@ -155,19 +160,19 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
           const SizedBox(height: 8),
           Wrap(spacing: 6, children: [
             if (r.earlyLeaveMinutes > 0)
-              Chip(label: Text('Early leave ${r.earlyLeaveMinutes}m')),
+              Chip(label: Text(l10n.earlyLeaveChip('${r.earlyLeaveMinutes}'))),
             if (r.overtimeMinutes > 0)
-              Chip(label: Text('Overtime +${r.overtimeMinutes}m')),
+              Chip(label: Text(l10n.overtimeChip('${r.overtimeMinutes}'))),
             if (canCheckIn)
               FilledButton(
                 onPressed: () => vm.checkIn(r, DateTime.now()),
-                child: const Text('Check In'),
+                child: Text(l10n.checkIn),
               ),
           ]),
           if (r.notes.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text('Note: ${r.notes}',
+              child: Text(l10n.noteLabel(r.notes),
                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ),
         ]),
@@ -185,12 +190,13 @@ class _MyAttendancePageState extends ConsumerState<MyAttendancePage> {
       );
 
   Widget _statusChip(AttendanceStatus status) {
+    final l10n = AppLocalizations.of(context)!;
     final (color, label) = switch (status) {
-      AttendanceStatus.present => (Colors.green, 'Present'),
-      AttendanceStatus.late => (Colors.orange, 'Late'),
-      AttendanceStatus.earlyLeave => (Colors.deepOrange, 'Early Leave'),
-      AttendanceStatus.absent => (Colors.red, 'Absent'),
-      AttendanceStatus.scheduled => (Colors.grey, 'Scheduled'),
+      AttendanceStatus.present => (Colors.green, l10n.statusPresent),
+      AttendanceStatus.late => (Colors.orange, l10n.statusLate),
+      AttendanceStatus.earlyLeave => (Colors.deepOrange, l10n.statusEarlyLeave),
+      AttendanceStatus.absent => (Colors.red, l10n.statusAbsent),
+      AttendanceStatus.scheduled => (Colors.grey, l10n.statusScheduled),
     };
     return Chip(
       backgroundColor: color.withOpacity(0.15),
@@ -207,6 +213,7 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     Widget stat(String label, String value, Color c) => Column(children: [
           Text(value,
               style: TextStyle(
@@ -220,11 +227,11 @@ class _SummaryRow extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            stat('Present', '${summary.presentCount}', Colors.green),
-            stat('Late', '${summary.lateCount}', Colors.orange),
-            stat('Absent', '${summary.absentCount}', Colors.red),
-            stat('Early', '${summary.earlyLeaveCount}', Colors.deepOrange),
-            stat('Overtime',
+            stat(l10n.statusPresent, '${summary.presentCount}', Colors.green),
+            stat(l10n.statusLate, '${summary.lateCount}', Colors.orange),
+            stat(l10n.statusAbsent, '${summary.absentCount}', Colors.red),
+            stat(l10n.summaryEarly, '${summary.earlyLeaveCount}', Colors.deepOrange),
+            stat(l10n.colOvertime,
                 '${summary.totalOvertimeMinutes > 0 ? "+${(summary.totalOvertimeMinutes / 60).toStringAsFixed(1)}h" : "0"}',
                 Colors.purple),
           ],

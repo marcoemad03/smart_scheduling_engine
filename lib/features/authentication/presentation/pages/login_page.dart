@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:reception_workforce_scheduler/core/l10n/error_localizer.dart';
 import 'package:reception_workforce_scheduler/core/providers.dart';
 import 'package:reception_workforce_scheduler/core/utils/validators.dart';
 
@@ -27,6 +29,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authViewModelProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -45,7 +48,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Reception Scheduler',
+                        l10n.appName,
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           color: Theme.of(context).colorScheme.primary,
                           fontWeight: FontWeight.bold,
@@ -54,7 +57,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Login to continue',
+                        l10n.loginToContinue,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
                         ),
@@ -64,14 +67,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       TextFormField(
                         controller: _emailController,
                         decoration: InputDecoration(
-                          labelText: 'Email',
+                          labelText: l10n.email,
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.email_outlined),
                         ),
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Email required';
-                          if (!Validators.isValidEmail(value)) return 'Invalid email';
+                          if (value == null || value.isEmpty) return l10n.emailRequired;
+                          if (!Validators.isValidEmail(value)) return l10n.invalidEmail;
                           return null;
                         },
                       ),
@@ -79,7 +82,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       TextFormField(
                         controller: _passwordController,
                         decoration: InputDecoration(
-                          labelText: 'Password',
+                          labelText: l10n.password,
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
@@ -91,8 +94,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                         obscureText: _obscurePassword,
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Password required';
-                          if (value.length < 6) return 'Password too short';
+                          if (value == null || value.isEmpty) return l10n.passwordRequired;
+                          if (value.length < 6) return l10n.passwordTooShort;
                           return null;
                         },
                       ),
@@ -105,10 +108,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         error: (error, _) => Column(
                           children: [
                             Text(
-                              error
-                                  .toString()
-                                  .replaceFirst('AppException: ', '')
-                                  .replaceFirst('Exception: ', ''),
+                              localizeErrorText(
+                                  context,
+                                  error
+                                      .toString()
+                                      .replaceFirst('AppException: ', '')
+                                      .replaceFirst('Exception: ', '')),
                               style: TextStyle(color: Theme.of(context).colorScheme.error),
                               textAlign: TextAlign.center,
                             ),
@@ -117,7 +122,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               height: 48,
                               child: FilledButton(
                                 onPressed: _attemptSignIn,
-                                child: const Text('Try Again'),
+                                child: Text(l10n.tryAgain),
                               ),
                             ),
                           ],
@@ -139,7 +144,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               onPressed: () {
                                 _attemptSignIn();
                               },
-                              child: const Text('Sign In'),
+                              child: Text(l10n.signIn),
                             ),
                           );
                         },

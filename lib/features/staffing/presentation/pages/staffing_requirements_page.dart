@@ -1,9 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/staffing/domain/entities/staffing_requirement.dart';
 import 'package:reception_workforce_scheduler/features/staffing/presentation/providers/staffing_providers.dart';
+
+/// Localized full day name for an ISO weekday (1=Mon..7=Sun).
+String localizedDayName(AppLocalizations l10n, int weekday) {
+  final days = [
+    l10n.dayMon,
+    l10n.dayTue,
+    l10n.dayWed,
+    l10n.dayThu,
+    l10n.dayFri,
+    l10n.daySat,
+    l10n.daySun,
+  ];
+  return days[weekday - 1];
+}
 
 class StaffingRequirementsPage extends ConsumerStatefulWidget {
   const StaffingRequirementsPage({Key? key}) : super(key: key);
@@ -19,22 +34,22 @@ class _StaffingRequirementsPageState
   Widget build(BuildContext context) {
     final state = ref.watch(staffingViewModelProvider);
     final isDesktop = MediaQuery.of(context).size.width > 768;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Staffing Requirements')),
+      appBar: AppBar(title: Text(l10n.staffingTitle)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: state.areas.isEmpty ? null : () => _showRequirementDialog(),
-        label: const Text('Add Requirement'),
+        label: Text(l10n.addRequirement),
         icon: const Icon(Icons.add),
       ),
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.error != null
-              ? Center(child: Text('Error: ${state.error}'))
+              ? Center(child: Text(l10n.errorPrefix(state.error!)))
               : state.requirements.isEmpty
-                  ? const Center(
-                      child: Text(
-                          'No requirements defined. Add coverage requirements per area, day and time window.'))
+                  ? Center(
+                      child: Text(l10n.noRequirements))
                   : isDesktop
                       ? _buildTable(state)
                       : _buildList(state),
@@ -49,18 +64,19 @@ class _StaffingRequirementsPageState
   }
 
   Widget _buildTable(StaffingState state) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Area')),
-          DataColumn(label: Text('Day')),
-          DataColumn(label: Text('Time Window')),
-          DataColumn(label: Text('Required')),
-          DataColumn(label: Text('Actions')),
+        columns: [
+          DataColumn(label: Text(l10n.colArea)),
+          DataColumn(label: Text(l10n.colDay)),
+          DataColumn(label: Text(l10n.colTimeWindow)),
+          DataColumn(label: Text(l10n.colRequired)),
+          DataColumn(label: Text(l10n.colActions)),
         ],
         rows: state.requirements.map((req) {
-          final dayName = DateTimeUtils.getDayName(req.dayOfWeek);
+          final dayName = localizedDayName(l10n, req.dayOfWeek);
           return DataRow(cells: [
             DataCell(Text(_areaName(state, req.areaId) ?? req.areaId)),
             DataCell(Text(dayName)),
@@ -73,7 +89,7 @@ class _StaffingRequirementsPageState
               ),
               IconButton(
                 icon: const Icon(Icons.copy_outlined),
-                tooltip: 'Duplicate',
+                tooltip: l10n.duplicate,
                 onPressed: () => ref
                     .read(staffingViewModelProvider.notifier)
                     .saveRequirement(req.copyWith(requirementId: const Uuid().v4())),
@@ -99,9 +115,9 @@ class _StaffingRequirementsPageState
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             title: Text(
-                '${_areaName(state, req.areaId) ?? req.areaId} - ${DateTimeUtils.getDayName(req.dayOfWeek)}'),
+                '${_areaName(state, req.areaId) ?? req.areaId} - ${localizedDayName(AppLocalizations.of(context)!, req.dayOfWeek)}'),
             subtitle: Text(
-                '${req.windowLabel} • Required: ${req.requiredCount}'),
+                '${req.windowLabel} • ${AppLocalizations.of(context)!.requiredCountLabel('${req.requiredCount}')}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -122,15 +138,16 @@ class _StaffingRequirementsPageState
   }
 
   void _confirmDelete(StaffingRequirementEntity req) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete requirement?'),
-        content: const Text('This staffing requirement will be removed.'),
+        title: Text(l10n.deleteRequirementTitle),
+        content: Text(l10n.deleteRequirementBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(l10n.cancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
@@ -139,7 +156,7 @@ class _StaffingRequirementsPageState
                   .read(staffingViewModelProvider.notifier)
                   .deleteRequirement(req.requirementId);
             },
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -148,6 +165,7 @@ class _StaffingRequirementsPageState
 
   void _showRequirementDialog({StaffingRequirementEntity? requirement}) {
     final state = ref.read(staffingViewModelProvider);
+    final l10n = AppLocalizations.of(context)!;
     String? areaId =
         requirement?.areaId ?? (state.areas.isNotEmpty ? state.areas.first.areaId : null);
     int dayOfWeek = requirement?.dayOfWeek ?? 1;
@@ -161,8 +179,8 @@ class _StaffingRequirementsPageState
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text(requirement == null
-              ? 'Add Requirement'
-              : 'Edit Requirement'),
+              ? l10n.addRequirement
+              : l10n.editRequirement),
           content: SizedBox(
             width: 400,
             child: SingleChildScrollView(
@@ -171,7 +189,7 @@ class _StaffingRequirementsPageState
                 children: [
                   DropdownButtonFormField<String>(
                     value: areaId,
-                    decoration: const InputDecoration(labelText: 'Area'),
+                    decoration: InputDecoration(labelText: l10n.colArea),
                     items: state.areas
                         .map((a) => DropdownMenuItem(
                             value: a.areaId, child: Text(a.name)))
@@ -182,11 +200,11 @@ class _StaffingRequirementsPageState
                   DropdownButtonFormField<int>(
                     value: dayOfWeek,
                     decoration:
-                        const InputDecoration(labelText: 'Day of Week'),
+                        InputDecoration(labelText: l10n.dayOfWeek),
                     items: List.generate(7, (i) {
                       final d = i + 1; // Monday=1 .. Sunday=7
                       return DropdownMenuItem(
-                          value: d, child: Text(DateTimeUtils.getDayName(d)));
+                          value: d, child: Text(localizedDayName(l10n, d)));
                     }),
                     onChanged: (v) => setDialogState(() => dayOfWeek = v!),
                   ),
@@ -209,7 +227,7 @@ class _StaffingRequirementsPageState
                         },
                         child: InputDecorator(
                           decoration:
-                              const InputDecoration(labelText: 'Window Start'),
+                              InputDecoration(labelText: l10n.windowStart),
                           child: Text(_formatMinute(startMinute)),
                         ),
                       ),
@@ -235,25 +253,25 @@ class _StaffingRequirementsPageState
                         },
                         child: InputDecorator(
                           decoration:
-                              const InputDecoration(labelText: 'Window End'),
+                              InputDecoration(labelText: l10n.windowEnd),
                           child: Text(_formatMinute(endMinute)),
                         ),
                       ),
                     ),
                   ]),
                   const SizedBox(height: 8),
-                  const Align(
-                    alignment: Alignment.centerLeft,
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      'If End is before or equal to Start, the window spans midnight (e.g. 22:00 → 06:00).',
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                      l10n.midnightNote,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: countController,
-                    decoration: const InputDecoration(
-                        labelText: 'Required Employees'),
+                    decoration: InputDecoration(
+                        labelText: l10n.requiredEmployees),
                     keyboardType: TextInputType.number,
                   ),
                 ],
@@ -263,7 +281,7 @@ class _StaffingRequirementsPageState
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: Text(l10n.cancel)),
             FilledButton(
               onPressed: () {
                 final selectedAreaId = areaId;
@@ -284,7 +302,7 @@ class _StaffingRequirementsPageState
                     );
                 Navigator.pop(ctx);
               },
-              child: const Text('Save'),
+              child: Text(l10n.save),
             ),
           ],
         ),

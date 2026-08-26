@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/core/providers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,6 +26,9 @@ import '../features/swaps/presentation/pages/admin_swap_requests_page.dart';
 import '../features/notifications/presentation/pages/notifications_page.dart';
 import '../features/attendance/presentation/pages/my_attendance_page.dart';
 import '../features/attendance/presentation/pages/admin_attendance_page.dart';
+import '../features/employees/presentation/pages/employee_details_page.dart';
+import '../features/employees/presentation/pages/employee_list_page.dart';
+import '../features/employees/presentation/pages/employee_profile_page.dart';
 
 class AppRoutes {
   static final _authNotifier = AuthRoleNotifier();
@@ -66,7 +70,8 @@ class AppRoutes {
         builder: (context, state, child) => AdminDashboardShell(child: child),
         routes: [
           GoRoute(path: '/admin', name: 'admin', builder: (context, state) => const AdminDashboardPage()),
-          GoRoute(path: '/admin/employees', name: 'employees', builder: (context, state) => const Scaffold(body: Center(child: Text('Employees')))),
+          GoRoute(path: '/admin/employees', name: 'employees', builder: (context, state) => const EmployeeListPage()),
+          GoRoute(path: '/admin/employees/:id', name: 'employeeDetails', builder: (context, state) => EmployeeDetailsPage(employeeId: state.pathParameters['id'] ?? '')),
           GoRoute(path: '/admin/areas', name: 'areas', builder: (context, state) => const AreaManagementPage()),
           GoRoute(path: '/admin/shifts', name: 'shifts', builder: (context, state) => const ShiftTemplatePage()),
           GoRoute(path: '/admin/staffing', name: 'staffing', builder: (context, state) => const StaffingRequirementsPage()),
@@ -88,6 +93,7 @@ class AppRoutes {
           GoRoute(path: '/employee/swaps', name: 'my_swaps', builder: (context, state) => const MySwapsPage()),
           GoRoute(path: '/employee/attendance', name: 'my_attendance', builder: (context, state) => const MyAttendancePage()),
           GoRoute(path: '/employee/notifications', name: 'notifications', builder: (context, state) => const NotificationsPage()),
+          GoRoute(path: '/employee/profile', name: 'my_profile', builder: (context, state) => const EmployeeProfilePage()),
         ],
       ),
     ],
@@ -133,18 +139,19 @@ class AdminDashboardShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final List<Map<String, dynamic>> items = [
-      {'icon': Icons.dashboard_outlined, 'label': 'Dashboard', 'route': '/admin'},
-      {'icon': Icons.people_outline, 'label': 'Employees', 'route': '/admin/employees'},
-      {'icon': Icons.room_outlined, 'label': 'Areas', 'route': '/admin/areas'},
-      {'icon': Icons.schedule_outlined, 'label': 'Shifts', 'route': '/admin/shifts'},
-      {'icon': Icons.badge_outlined, 'label': 'Staffing', 'route': '/admin/staffing'},
-      {'icon': Icons.calendar_today_outlined, 'label': 'Schedules', 'route': '/admin/schedules'},
-      {'icon': Icons.smart_toy_outlined, 'label': 'AI Assistant', 'route': '/admin/assistant'},
-      {'icon': Icons.event_available_outlined, 'label': 'Leaves', 'route': '/admin/leaves'},
-      {'icon': Icons.swap_horiz_outlined, 'label': 'Swaps', 'route': '/admin/swaps'},
-      {'icon': Icons.check_circle_outline, 'label': 'Attendance', 'route': '/admin/attendance'},
-      {'icon': Icons.settings_outlined, 'label': 'Settings', 'route': '/admin/settings'},
+      {'icon': Icons.dashboard_outlined, 'label': l10n.navDashboard, 'route': '/admin'},
+      {'icon': Icons.people_outline, 'label': l10n.navEmployees, 'route': '/admin/employees'},
+      {'icon': Icons.room_outlined, 'label': l10n.navAreas, 'route': '/admin/areas'},
+      {'icon': Icons.schedule_outlined, 'label': l10n.navShifts, 'route': '/admin/shifts'},
+      {'icon': Icons.badge_outlined, 'label': l10n.navStaffing, 'route': '/admin/staffing'},
+      {'icon': Icons.calendar_today_outlined, 'label': l10n.navSchedules, 'route': '/admin/schedules'},
+      {'icon': Icons.smart_toy_outlined, 'label': l10n.navAiAssistant, 'route': '/admin/assistant'},
+      {'icon': Icons.event_available_outlined, 'label': l10n.navLeaves, 'route': '/admin/leaves'},
+      {'icon': Icons.swap_horiz_outlined, 'label': l10n.navSwaps, 'route': '/admin/swaps'},
+      {'icon': Icons.check_circle_outline, 'label': l10n.navAttendance, 'route': '/admin/attendance'},
+      {'icon': Icons.settings_outlined, 'label': l10n.navSettings, 'route': '/admin/settings'},
     ];
 
     int selectedIndex = 0;
@@ -188,13 +195,15 @@ class EmployeeDashboardShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final List<Map<String, dynamic>> items = [
-      {'icon': Icons.dashboard_outlined, 'label': 'Dashboard', 'route': '/employee'},
-      {'icon': Icons.calendar_today_outlined, 'label': 'Schedule', 'route': '/employee/schedule'},
-      {'icon': Icons.access_time_outlined, 'label': 'Availability', 'route': '/employee/availability'},
-      {'icon': Icons.event_available_outlined, 'label': 'Leaves', 'route': '/employee/leaves'},
-      {'icon': Icons.swap_horiz_outlined, 'label': 'Swaps', 'route': '/employee/swaps'},
-      {'icon': Icons.fact_check_outlined, 'label': 'Attendance', 'route': '/employee/attendance'},
+      {'icon': Icons.dashboard_outlined, 'label': l10n.navDashboard, 'route': '/employee'},
+      {'icon': Icons.calendar_today_outlined, 'label': l10n.navMySchedule, 'route': '/employee/schedule'},
+      {'icon': Icons.access_time_outlined, 'label': l10n.navAvailability, 'route': '/employee/availability'},
+      {'icon': Icons.event_available_outlined, 'label': l10n.navLeaves, 'route': '/employee/leaves'},
+      {'icon': Icons.swap_horiz_outlined, 'label': l10n.navSwaps, 'route': '/employee/swaps'},
+      {'icon': Icons.fact_check_outlined, 'label': l10n.navAttendance, 'route': '/employee/attendance'},
+      {'icon': Icons.person_outline, 'label': l10n.myProfile, 'route': '/employee/profile'},
     ];
 
     int selectedIndex = 0;
@@ -238,22 +247,23 @@ class _LogoutButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     return IconButton(
-      tooltip: 'Logout',
+      tooltip: l10n.logout,
       icon: const Icon(Icons.logout),
       onPressed: () async {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Are you sure you want to sign out?'),
+            title: Text(l10n.logout),
+            content: Text(l10n.logoutConfirm),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
+                  child: Text(l10n.cancel)),
               FilledButton(
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Logout')),
+                  child: Text(l10n.logout)),
             ],
           ),
         );

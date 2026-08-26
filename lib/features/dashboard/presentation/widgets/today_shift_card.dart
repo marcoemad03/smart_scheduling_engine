@@ -1,10 +1,30 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/employee_shift_status.dart';
+
+/// Maps the domain-layer English status labels to localized strings.
+String _localizedTodayLabel(BuildContext context, String label) {
+  final l10n = AppLocalizations.of(context)!;
+  switch (label) {
+    case 'Working now':
+      return l10n.workingNow;
+    case 'Not started yet':
+      return l10n.notStartedYet;
+    case 'Finished for today':
+      return l10n.finishedForToday;
+    case 'Day off':
+      return l10n.dayOff;
+    case 'No upcoming shifts':
+      return l10n.noUpcomingShifts;
+    default:
+      return label;
+  }
+}
 
 class TodayShiftCard extends StatelessWidget {
   final EmployeeShiftStatus status;
@@ -15,6 +35,7 @@ class TodayShiftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final shift = status.currentShift;
     final now = DateTime.now();
     final accent = status.isWorking ? Colors.green : Colors.blueGrey;
@@ -29,41 +50,45 @@ class TodayShiftCard extends StatelessWidget {
             Row(children: [
               Icon(Icons.today, color: accent),
               const SizedBox(width: 8),
-              const Text('Today',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(l10n.today,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
               const Spacer(),
               Chip(
                 backgroundColor:
                     accent.withOpacity(0.12),
-                label: Text(status.todayLabel,
+                label: Text(_localizedTodayLabel(context, status.todayLabel),
                     style: TextStyle(
                         color: accent, fontWeight: FontWeight.w600)),
               ),
             ]),
             const SizedBox(height: 12),
             if (shift != null) ...[
-              _row('Current area', areaName ?? shift.areaId),
-              _row('Start time', DateTimeUtils.formatTime(shift.startDateTime)),
-              _row('End time', DateTimeUtils.formatTime(shift.endDateTime)),
+              _row(l10n.currentArea, areaName ?? shift.areaId),
+              _row(l10n.startTime, DateTimeUtils.formatTime(shift.startDateTime)),
+              _row(l10n.endTime, DateTimeUtils.formatTime(shift.endDateTime)),
               if (status.isWorking) ...[
                 const SizedBox(height: 8),
                 Row(children: [
                   const Icon(Icons.timer, size: 18, color: Colors.green),
                   const SizedBox(width: 6),
-                  Text(
-                    'Time remaining: ${_remaining(shift.endDateTime.difference(now))}',
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green),
+                  Expanded(
+                    child: Text(
+                      l10n.timeRemaining(
+                          _remaining(shift.endDateTime.difference(now))),
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green),
+                    ),
                   ),
                 ]),
               ],
             ] else
               Text(
                 status.nextShift == null
-                    ? 'No published shift right now.'
-                    : 'Not working at this moment.',
+                    ? l10n.noPublishedShiftNow
+                    : l10n.notWorkingNow,
                 style: const TextStyle(color: Colors.grey),
               ),
           ],
@@ -103,12 +128,12 @@ class NextShiftCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (next == null) {
-      return const Card(
+      final l10n = AppLocalizations.of(context)!;
+      return Card(
         child: ListTile(
-          leading: Icon(Icons.event_note_outlined),
-          title: Text('No upcoming published shifts'),
-          subtitle:
-              Text('Your schedule will appear here once admin publishes it.'),
+          leading: const Icon(Icons.event_note_outlined),
+          title: Text(l10n.noUpcomingPublishedShifts),
+          subtitle: Text(l10n.scheduleWillAppear),
         ),
       );
     }
@@ -117,8 +142,9 @@ class NextShiftCard extends StatelessWidget {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.upcoming_outlined, size: 32),
-        title: Text(
-            'Next: $dayLabel • ${DateTimeUtils.formatTime(n.startDateTime)} → ${DateTimeUtils.formatTime(n.endDateTime)}'),
+        title: Text(AppLocalizations.of(context)!.nextShiftLabel(
+            dayLabel,
+            '${DateTimeUtils.formatTime(n.startDateTime)} → ${DateTimeUtils.formatTime(n.endDateTime)}')),
         subtitle: Text(areaNames[n.areaId] ?? n.areaId),
       ),
     );

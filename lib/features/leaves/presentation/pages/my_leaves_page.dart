@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/features/leaves/data/leaves_repository.dart';
@@ -16,12 +17,13 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(myLeavesViewModelProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Leave & Day Off')),
+      appBar: AppBar(title: Text(l10n.leaveTitle)),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
-        label: const Text('New Request'),
+        label: Text(l10n.newRequest),
         onPressed: () => _showRequestDialog(context, isDayOff: false),
       ),
       body: Column(children: [
@@ -29,7 +31,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
           padding: const EdgeInsets.all(12),
           child: OutlinedButton.icon(
             icon: const Icon(Icons.event_busy),
-            label: const Text('Request a Day Off'),
+            label: Text(l10n.requestDayOff),
             onPressed: () => _showRequestDialog(context, isDayOff: true),
           ),
         ),
@@ -37,10 +39,10 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
         Expanded(
           child: async.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error: $e')),
+            error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
             data: (list) {
               if (list.isEmpty) {
-                return const Center(child: Text('No requests yet.'));
+                return Center(child: Text(l10n.noRequestsYet));
               }
               return ListView.builder(
                 padding: const EdgeInsets.all(12),
@@ -72,34 +74,43 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
   }
 
   String _title(LeaveRequest r) {
+    final l10n = AppLocalizations.of(context)!;
     switch (r.type) {
       case LeaveType.vacation:
-        return 'Vacation';
+        return l10n.vacation;
       case LeaveType.sick:
-        return 'Sick leave';
+        return l10n.sickLeave;
       case LeaveType.personal:
-        return 'Personal';
+        return l10n.personal;
       case LeaveType.other:
-        return 'Leave';
+        return l10n.leaveTypeOther;
     }
   }
 
   Widget _statusChip(LeaveStatus status) {
+    final l10n = AppLocalizations.of(context)!;
     final color = switch (status) {
       LeaveStatus.approved => Colors.green,
       LeaveStatus.rejected => Colors.red,
       LeaveStatus.cancelled => Colors.grey,
       LeaveStatus.pending => Colors.orange,
     };
+    final label = switch (status) {
+      LeaveStatus.approved => l10n.statusApproved,
+      LeaveStatus.rejected => l10n.statusRejected,
+      LeaveStatus.cancelled => l10n.statusCancelled,
+      LeaveStatus.pending => l10n.statusPending,
+    };
     return Chip(
       backgroundColor: color.withOpacity(0.15),
-      label: Text(status.name,
+      label: Text(label,
           style: TextStyle(color: color, fontSize: 11,
               fontWeight: FontWeight.bold)),
     );
   }
 
   void _showRequestDialog(BuildContext context, {required bool isDayOff}) {
+    final l10n = AppLocalizations.of(context)!;
     var type = LeaveType.personal;
     DateTime start = DateTime.now();
     DateTime end = DateTime.now();
@@ -109,23 +120,28 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialog) => AlertDialog(
-          title: Text(isDayOff ? 'Request a Day Off' : 'Request Leave'),
+          title: Text(isDayOff ? l10n.requestDayOffTitle : l10n.requestLeaveTitle),
           content: SizedBox(
             width: 380,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               if (!isDayOff)
                 DropdownButtonFormField<LeaveType>(
                   value: type,
-                  decoration: const InputDecoration(labelText: 'Type'),
+                  decoration: InputDecoration(labelText: l10n.type),
                   items: LeaveType.values
                       .map((t) => DropdownMenuItem(
-                          value: t, child: Text(t.name)))
+                          value: t,
+                          child: Text(switch (t) {
+                            LeaveType.vacation => l10n.vacation,
+                            LeaveType.sick => l10n.sickLeave,
+                            LeaveType.personal => l10n.personal,
+                            LeaveType.other => l10n.leaveTypeOther,
+                          })))
                       .toList(),
                   onChanged: (v) => setDialog(() => type = v!),
                 )
               else
-                const Text('Your requested day will be marked as unavailable '
-                    'until the admin approves.'),
+                Text(l10n.dayOffNote),
               const SizedBox(height: 12),
               InkWell(
                 onTap: () async {
@@ -139,7 +155,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
                 },
                 child: InputDecorator(
                   decoration: InputDecoration(
-                      labelText: isDayOff ? 'Day' : 'From'),
+                      labelText: isDayOff ? l10n.day : l10n.from),
                   child: Text(DateFormat('EEE, MMM d, yyyy').format(start)),
                 ),
               ),
@@ -156,7 +172,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
                     if (d != null) setDialog(() => end = d);
                   },
                   child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'To'),
+                    decoration: InputDecoration(labelText: l10n.to),
                     child: Text(DateFormat('EEE, MMM d, yyyy').format(end)),
                   ),
                 ),
@@ -165,7 +181,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
               TextField(
                 controller: notesController,
                 decoration:
-                    const InputDecoration(labelText: 'Notes (optional)'),
+                    InputDecoration(labelText: l10n.notesOptional),
                 maxLines: 2,
               ),
             ]),
@@ -173,7 +189,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: Text(l10n.cancel)),
             FilledButton(
               onPressed: () {
                 final dayStart = DateTime(
@@ -193,7 +209,7 @@ class _MyLeavesPageState extends ConsumerState<MyLeavesPage> {
                     );
                 Navigator.pop(ctx);
               },
-              child: const Text('Submit'),
+              child: Text(l10n.submit),
             ),
           ],
         ),

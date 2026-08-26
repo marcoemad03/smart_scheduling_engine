@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/providers.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
+import 'package:reception_workforce_scheduler/core/utils/directional_icons.dart';
 import 'package:reception_workforce_scheduler/features/attendance/data/attendance_repository.dart';
 import 'package:reception_workforce_scheduler/features/attendance/domain/entities/attendance_record.dart';
 
@@ -97,28 +99,29 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
   Widget build(BuildContext context) {
     final async = ref.watch(adminAttendanceProvider);
     final vm = ref.read(adminAttendanceProvider.notifier);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-            'Attendance • ${DateFormat('MMM d').format(_weekStart)} - ${DateFormat('MMM d').format(_weekStart.add(const Duration(days: 6)))}'),
+            '${l10n.attendanceTitle} • ${DateFormat('MMM d').format(_weekStart)} - ${DateFormat('MMM d').format(_weekStart.add(const Duration(days: 6)))}'),
         actions: [
           IconButton(
-            tooltip: 'Sync from published schedule',
+            tooltip: l10n.syncFromSchedule,
             icon: const Icon(Icons.sync),
             onPressed: _syncFromSchedule,
           ),
           IconButton(
-              icon: const Icon(Icons.chevron_left),
+              icon: Icon(DirectionalIcons.chevronBackward(context)),
               onPressed: () => _changeWeek(-1)),
           IconButton(
-              icon: const Icon(Icons.chevron_right),
+              icon: Icon(DirectionalIcons.chevronForward(context)),
               onPressed: () => _changeWeek(1)),
         ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
         data: (records) {
           final summary = AttendanceSummary.of(records);
           return Column(children: [
@@ -130,13 +133,13 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _stat('Present', '${summary.presentCount}', Colors.green),
-                      _stat('Late', '${summary.lateCount}', Colors.orange),
-                      _stat('Absent', '${summary.absentCount}', Colors.red),
-                      _stat('Early Leave', '${summary.earlyLeaveCount}',
+                      _stat(l10n.statusPresent, '${summary.presentCount}', Colors.green),
+                      _stat(l10n.statusLate, '${summary.lateCount}', Colors.orange),
+                      _stat(l10n.statusAbsent, '${summary.absentCount}', Colors.red),
+                      _stat(l10n.statusEarlyLeave, '${summary.earlyLeaveCount}',
                           Colors.deepOrange),
                       _stat(
-                          'Overtime',
+                          l10n.colOvertime,
                           summary.totalOvertimeMinutes > 0
                               ? '+${(summary.totalOvertimeMinutes / 60).toStringAsFixed(1)}h'
                               : '0',
@@ -148,20 +151,20 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
             ),
             Expanded(
               child: records.isEmpty
-                  ? const Center(child: Text('No attendance records this week.'))
+                  ? Center(child: Text(l10n.noRecordsWeek))
                   : SingleChildScrollView(
                       padding: const EdgeInsets.all(12),
                       child: DataTable(
-                        columns: const [
-                          DataColumn(label: Text('Employee')),
-                          DataColumn(label: Text('Date')),
-                          DataColumn(label: Text('Planned')),
-                          DataColumn(label: Text('Actual')),
-                          DataColumn(label: Text('Late')),
-                          DataColumn(label: Text('Early')),
-                          DataColumn(label: Text('Overtime')),
-                          DataColumn(label: Text('Status')),
-                          DataColumn(label: Text('Actions')),
+                        columns: [
+                          DataColumn(label: Text(l10n.employee)),
+                          DataColumn(label: Text(l10n.colDate)),
+                          DataColumn(label: Text(l10n.colPlanned)),
+                          DataColumn(label: Text(l10n.colActual)),
+                          DataColumn(label: Text(l10n.statusLate)),
+                          DataColumn(label: Text(l10n.colEarly)),
+                          DataColumn(label: Text(l10n.colOvertime)),
+                          DataColumn(label: Text(l10n.colStatus)),
+                          DataColumn(label: Text(l10n.colActions)),
                         ],
                         rows: records.map((r) {
                           return DataRow(cells: [
@@ -182,14 +185,14 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
                               if (r.status != AttendanceStatus.absent &&
                                   r.actualCheckIn == null)
                                 IconButton(
-                                  tooltip: 'Mark absent',
+                                  tooltip: l10n.markAbsent,
                                   icon: const Icon(Icons.person_off_outlined,
                                       size: 18, color: Colors.red),
                                   onPressed: () =>
-                                      vm.markAbsent(r, 'Marked absent by admin'),
+                                      vm.markAbsent(r, l10n.markedAbsentNote),
                                 ),
                               IconButton(
-                                tooltip: 'Add note',
+                                tooltip: l10n.addNote,
                                 icon: const Icon(Icons.note_add_outlined,
                                     size: 18),
                                 onPressed: () async {
@@ -197,7 +200,7 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
                                   final note = await showDialog<String>(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
-                                      title: const Text('Add Note'),
+                                      title: Text(l10n.addNote),
                                       content: TextField(
                                           controller: c,
                                           autofocus: true),
@@ -205,11 +208,11 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
                                         TextButton(
                                             onPressed: () =>
                                                 Navigator.pop(ctx),
-                                            child: const Text('Cancel')),
+                                            child: Text(l10n.cancel)),
                                         FilledButton(
                                             onPressed: () => Navigator.pop(
                                                 ctx, c.text.trim()),
-                                            child: const Text('Save')),
+                                            child: Text(l10n.save)),
                                       ],
                                     ),
                                   );
@@ -237,12 +240,13 @@ class _AdminAttendancePageState extends ConsumerState<AdminAttendancePage> {
       ]);
 
   Widget _chip(BuildContext context, AttendanceRecord r) {
+    final l10n = AppLocalizations.of(context)!;
     final (color, label) = switch (r.status) {
-      AttendanceStatus.present => (Colors.green, 'Present'),
-      AttendanceStatus.late => (Colors.orange, 'Late'),
-      AttendanceStatus.earlyLeave => (Colors.deepOrange, 'Early'),
-      AttendanceStatus.absent => (Colors.red, 'Absent'),
-      AttendanceStatus.scheduled => (Colors.grey, 'Scheduled'),
+      AttendanceStatus.present => (Colors.green, l10n.statusPresent),
+      AttendanceStatus.late => (Colors.orange, l10n.statusLate),
+      AttendanceStatus.earlyLeave => (Colors.deepOrange, l10n.summaryEarly),
+      AttendanceStatus.absent => (Colors.red, l10n.statusAbsent),
+      AttendanceStatus.scheduled => (Colors.grey, l10n.statusScheduled),
     };
     return Chip(
       backgroundColor: color.withOpacity(0.15),

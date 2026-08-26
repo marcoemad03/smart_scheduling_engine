@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
@@ -28,8 +29,9 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: const Text('Bulk Assign Employees'),
+      title: Text(l10n.bulkAssignTitle),
       content: SizedBox(
         width: 460,
         height: 460,
@@ -37,7 +39,7 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
           children: [
             DropdownButtonFormField<String>(
               value: areaId,
-              decoration: const InputDecoration(labelText: 'Area'),
+              decoration: InputDecoration(labelText: l10n.colArea),
               items: widget.areas
                   .map((a) => DropdownMenuItem(
                         value: a.areaId, child: Text(a.name)))
@@ -56,7 +58,7 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
                     },
                     child: InputDecorator(
                       decoration:
-                          const InputDecoration(labelText: 'Start Time'),
+                          InputDecoration(labelText: l10n.startTime),
                       child: Text(startTime.format(context)),
                     ),
                   ),
@@ -71,7 +73,7 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
                     },
                     child: InputDecorator(
                       decoration:
-                          const InputDecoration(labelText: 'End Time'),
+                          InputDecoration(labelText: l10n.endTime),
                       child: Text(endTime.format(context)),
                     ),
                   ),
@@ -79,10 +81,10 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
               ],
             ),
             const SizedBox(height: 8),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Select Employees:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(l10n.selectEmployees,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
             Expanded(
               child: ListView.builder(
@@ -112,7 +114,7 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -126,7 +128,7 @@ class _BulkAssignDialogState extends ConsumerState<BulkAssignDialog> {
                 );
             Navigator.of(context).pop();
           },
-          child: const Text('Assign'),
+          child: Text(l10n.assign),
         ),
       ],
     );
@@ -153,17 +155,18 @@ class _TemplateDialogState extends ConsumerState<TemplateDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: const Text('Schedule Template'),
+      title: Text(l10n.scheduleTemplate),
       content: SizedBox(
         width: 360,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Save Template')),
-                ButtonSegment(value: false, label: Text('Apply Template')),
+              segments: [
+                ButtonSegment(value: true, label: Text(l10n.saveTemplate)),
+                ButtonSegment(value: false, label: Text(l10n.applyTemplate)),
               ],
               selected: {saveMode},
               onSelectionChanged: (s) => setState(() => saveMode = s.first),
@@ -173,18 +176,17 @@ class _TemplateDialogState extends ConsumerState<TemplateDialog> {
               TextField(
                 controller: nameController,
                 decoration:
-                    const InputDecoration(labelText: 'Template Name'),
+                    InputDecoration(labelText: l10n.templateName),
               )
             else
-              const Text(
-                  'Apply the currently saved template to this week? (Coming from saved templates)'),
+              Text(l10n.applyTemplateQuestion),
           ],
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -196,7 +198,7 @@ class _TemplateDialogState extends ConsumerState<TemplateDialog> {
             }
             Navigator.of(context).pop();
           },
-          child: Text(saveMode ? 'Save' : 'Apply'),
+          child: Text(saveMode ? l10n.save : l10n.apply),
         ),
       ],
     );

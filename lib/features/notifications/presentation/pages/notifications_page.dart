@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/features/notifications/presentation/providers/notification_providers.dart';
@@ -12,13 +13,15 @@ class NotificationsPage extends ConsumerWidget {
     final repo = ref.watch(notificationRepositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.notificationsTitle)),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+            child: Text(AppLocalizations.of(context)!.errorPrefix('$e'))),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('No notifications yet.'));
+            return Center(
+                child: Text(AppLocalizations.of(context)!.noNotificationsYet));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),

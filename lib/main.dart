@@ -1,26 +1,43 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/app/app.dart';
+import 'package:reception_workforce_scheduler/core/locale/locale_providers.dart';
 import 'package:reception_workforce_scheduler/firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const _BootstrapApp());
+  final prefs = await SharedPreferences.getInstance();
+  final savedLocaleCode =
+      prefs.getString(kAppLocalePrefKey) ?? 'ar'; // Arabic by default.
+  runApp(_BootstrapApp(
+    prefs: prefs,
+    initialLocaleCode: savedLocaleCode,
+  ));
 }
 
 class _BootstrapApp extends StatelessWidget {
-  const _BootstrapApp();
+  const _BootstrapApp({
+    required this.prefs,
+    required this.initialLocaleCode,
+  });
+
+  final SharedPreferences prefs;
+  final String initialLocaleCode;
 
   @override
   Widget build(BuildContext context) {
+    final initialLocale = Locale(initialLocaleCode);
     return FutureBuilder<FirebaseApp>(
       future: _initFirebase(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('Firebase init failed: ${snapshot.error}');
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
+          return _BootstrapMaterialApp(
+            locale: initialLocale,
             home: Scaffold(
               body: Center(
                 child: Padding(
@@ -31,7 +48,8 @@ class _BootstrapApp extends StatelessWidget {
                       const Icon(Icons.error_outline,
                           size: 48, color: Colors.red),
                       const SizedBox(height: 16),
-                      const Text('Failed to initialize Firebase'),
+                      Text(AppLocalizations.of(context)?.firebaseInitFailed ??
+                          'Failed to initialize Firebase'),
                       const SizedBox(height: 8),
                       Text('${snapshot.error}',
                           textAlign: TextAlign.center,
@@ -44,23 +62,30 @@ class _BootstrapApp extends StatelessWidget {
           );
         }
         if (snapshot.connectionState != ConnectionState.done) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
+          return _BootstrapMaterialApp(
+            locale: initialLocale,
             home: Scaffold(
               body: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Starting Reception Scheduler…'),
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(AppLocalizations.of(context)?.startingApp ??
+                        'Starting Reception Scheduler…'),
                   ],
                 ),
               ),
             ),
           );
         }
-        return ProviderScope(child: ReceptionSchedulerApp());
+        return ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            initialLocaleCodeProvider.overrideWithValue(initialLocaleCode),
+          ],
+          child: const ReceptionSchedulerApp(),
+        );
       },
     );
   }
@@ -77,5 +102,30 @@ class _BootstrapApp extends StatelessWidget {
       }
       rethrow;
     }
+  }
+}
+
+/// MaterialApp used before the main ProviderScope exists, so the bootstrap
+/// screens are localized and direction-aware too.
+class _BootstrapMaterialApp extends StatelessWidget {
+  const _BootstrapMaterialApp({required this.locale, required this.home});
+
+  final Locale locale;
+  final Widget home;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: home,
+    );
   }
 }

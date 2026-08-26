@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
@@ -28,13 +29,13 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
   final _messages = <_ChatMessage>[];
   final _controller = TextEditingController();
 
-  static const _suggestions = [
-    'Make Ahmed off on Tuesday.',
-    'Move Mohamed to Clinics on Wednesday.',
-    'I need two additional employees from 8 AM to 3 PM on Friday.',
-    'Do not assign Mina to night shifts this week.',
-    'Generate the best schedule for this week.',
-  ];
+  List<String> _suggestions(AppLocalizations l10n) => [
+        l10n.suggestion1,
+        l10n.suggestion2,
+        l10n.suggestion3,
+        l10n.suggestion4,
+        l10n.suggestion5,
+      ];
 
   void _send(String text) {
     if (text.trim().isEmpty) return;
@@ -45,8 +46,9 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
 
     final state = ref.read(schedulerViewModelProvider);
     if (state.schedule == null) {
-      setState(() => _messages.add(const _ChatMessage(
-          fromAdmin: false, text: 'Load a week in the scheduler first.')));
+      setState(() => _messages.add(_ChatMessage(
+          fromAdmin: false,
+          text: AppLocalizations.of(context)!.loadWeekFirst)));
       return;
     }
 
@@ -77,9 +79,14 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
           ref.read(schedulerViewModelProvider.notifier).currentUserId,
     );
 
+    final l10n = AppLocalizations.of(context)!;
     final proposal = engine.execute(result.commands);
+    final issueCount = proposal.conflicts
+            .where((c) => c.severity == ConflictSeverity.error)
+            .length +
+        proposal.staffingConflicts.length;
     final buffer = StringBuffer()
-      ..writeln('I understood:')
+      ..writeln(l10n.iUnderstood)
       ..forCommands(result.commands)
       ..writeln();
     for (final e in proposal.explanations) {
@@ -88,16 +95,17 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
     buffer
       ..writeln()
       ..writeln(
-          'Validation: ${proposal.isFullyValid ? "no blocking conflicts" : "${proposal.conflicts.where((c) => c.severity == ConflictSeverity.error).length + proposal.staffingConflicts.length} issue(s) found"}'
-          ' • Coverage ${proposal.coverage.coveragePercentage.toStringAsFixed(1)}%');
+          '${l10n.validationLabel}: ${proposal.isFullyValid ? l10n.noBlockingConflicts : l10n.issuesFound('$issueCount')}'
+          ' • ${l10n.coveragePercent(proposal.coverage.coveragePercentage.toStringAsFixed(1))}');
     setState(() => _messages.add(_ChatMessage(
         fromAdmin: false, text: buffer.toString(), proposal: proposal)));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Scheduling Assistant')),
+      appBar: AppBar(title: Text(l10n.aiAssistantTitle)),
       body: Column(children: [
         Expanded(
           child: _messages.isEmpty
@@ -109,8 +117,8 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
                     final m = _messages[i];
                     return Align(
                       alignment: m.fromAdmin
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
+                          ? AlignmentDirectional.centerEnd
+                          : AlignmentDirectional.centerStart,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.all(12),
@@ -132,17 +140,17 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
                               Row(mainAxisSize: MainAxisSize.min, children: [
                                 FilledButton.icon(
                                   icon: const Icon(Icons.preview, size: 16),
-                                  label: const Text('Preview'),
+                                  label: Text(l10n.preview),
                                   onPressed: () =>
                                       _showPreview(context, m.proposal!),
                                 ),
                                 const SizedBox(width: 8),
                                 OutlinedButton(
                                   onPressed: () => setState(() => _messages
-                                      .add(const _ChatMessage(
+                                      .add(_ChatMessage(
                                           fromAdmin: false,
-                                          text: 'Discarded — no changes applied.'))),
-                                  child: const Text('Discard'),
+                                          text: l10n.discardedMsg))),
+                                  child: Text(l10n.discard),
                                 ),
                               ]),
                             ],
@@ -155,7 +163,7 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
         ),
         Wrap(
           spacing: 6,
-          children: _suggestions
+          children: _suggestions(l10n)
               .map((s) => ActionChip(
                     label: Text(s,
                         style: const TextStyle(fontSize: 11)),
@@ -169,9 +177,8 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
             Expanded(
               child: TextField(
                 controller: _controller,
-                decoration: const InputDecoration(
-                    hintText:
-                        'e.g. Make Ahmed off on Tuesday'),
+                decoration: InputDecoration(
+                    hintText: l10n.assistantHint),
                 onSubmitted: _send,
               ),
             ),
@@ -193,8 +200,7 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
           const Icon(Icons.smart_toy_outlined, size: 64),
           const SizedBox(height: 12),
           Text(
-            'Ask me to change the schedule.\nEvery change is validated and '
-            'applied only after your approval.',
+            AppLocalizations.of(context)!.assistantEmptyState,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -205,6 +211,7 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
 
   Future<void> _showPreview(
       BuildContext context, AssistantProposal proposal) async {
+    final l10n = AppLocalizations.of(context)!;
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -214,7 +221,7 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
             color: proposal.isFullyValid ? Colors.green : Colors.orange,
           ),
           const SizedBox(width: 8),
-          const Expanded(child: Text('Proposed Changes')),
+          Expanded(child: Text(l10n.proposedChanges)),
         ]),
         content: SizedBox(
           width: 520,
@@ -223,25 +230,25 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionTitle('Coverage after change'),
+                _sectionTitle(l10n.coverageAfterChange),
                 Text(
                   '${proposal.coverage.totalScheduled}/${proposal.coverage.totalRequired} • '
                   '${proposal.coverage.coveragePercentage.toStringAsFixed(1)}% • '
-                  '${proposal.isFullyValid ? "VALID" : "NEEDS REVIEW"}',
+                  '${proposal.isFullyValid ? l10n.valid : l10n.needsReview}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const Divider(),
-                _sectionTitle('Added (${proposal.added.length})'),
+                _sectionTitle(l10n.addedCount('${proposal.added.length}')),
                 ...proposal.added.map(_assignmentLine),
-                _sectionTitle('Removed (${proposal.removed.length})'),
+                _sectionTitle(l10n.removedCount('${proposal.removed.length}')),
                 ...proposal.removed.map(_assignmentLine),
-                _sectionTitle('Modified (${proposal.modified.length})'),
+                _sectionTitle(l10n.modifiedCount('${proposal.modified.length}')),
                 ...proposal.modified.map((pair) => _assignmentLine(pair.$2)),
                 const Divider(),
-                _sectionTitle('Validation findings'),
+                _sectionTitle(l10n.validationFindings),
                 if (proposal.conflicts.isEmpty &&
                     proposal.staffingConflicts.isEmpty)
-                  const Text('No conflicts.'),
+                  Text(l10n.noConflicts),
                 ...proposal.conflicts
                     .where((c) => c.severity == ConflictSeverity.error)
                     .map((c) => _bullet(c.message)),
@@ -253,19 +260,18 @@ class _AiAssistantPageState extends ConsumerState<AiAssistantPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(l10n.cancel)),
           FilledButton.icon(
             icon: const Icon(Icons.check),
-            label: const Text('Approve & Apply as Draft'),
+            label: Text(l10n.approveApplyDraft),
             onPressed: () {
               ref
                   .read(schedulerViewModelProvider.notifier)
                   .adoptProposedAssignments(proposal.proposedDraft.assignments);
               Navigator.pop(ctx);
-              setState(() => _messages.add(const _ChatMessage(
+              setState(() => _messages.add(_ChatMessage(
                   fromAdmin: false,
-                  text:
-                      'Changes applied to the DRAFT. Review them in the scheduler and save/publish when ready.')));
+                  text: l10n.appliedToDraft)));
             },
           ),
         ],

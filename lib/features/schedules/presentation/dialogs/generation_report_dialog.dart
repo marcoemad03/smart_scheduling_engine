@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/coverage_calculator.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/schedule_generator.dart';
@@ -19,6 +20,7 @@ class GenerationReportDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final coverage = result.coverageReport;
     final statusColor = result.isFullyValid
         ? Colors.green
@@ -34,7 +36,7 @@ class GenerationReportDialog extends StatelessWidget {
                 : Icons.report_problem,
             color: statusColor),
         const SizedBox(width: 8),
-        Expanded(child: Text('Draft Generated — DRAFT only')),
+        Expanded(child: Text(l10n.draftGeneratedTitle)),
       ]),
       content: SizedBox(
         width: 560,
@@ -45,7 +47,7 @@ class GenerationReportDialog extends StatelessWidget {
               _summaryCard(context, coverage, statusColor),
               const SizedBox(height: 16),
               if (!result.isFullyValid) ...[
-                Text('Could not be satisfied',
+                Text(l10n.couldNotSatisfy,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
@@ -54,11 +56,11 @@ class GenerationReportDialog extends StatelessWidget {
                 if (result.unfilled.isEmpty &&
                     !result.hasErrors &&
                     result.staffingConflicts.isEmpty)
-                  const Text('No blocking issues; review warnings below.')
+                  Text(l10n.noBlockingIssues)
                 else ...[
                   for (final u in result.unfilled)
                     _bullet(
-                        '${_area(u.areaId)} ${u.windowLabel} on ${u.dateLabel}: missing ${u.missing}'),
+                        '${_area(u.areaId)} ${u.windowLabel} ${u.dateLabel}: ${l10n.missingCount('${u.missing}')}'),
                   for (final c in result.conflicts
                       .where((c) => c.severity == ConflictSeverity.error))
                     _bullet(c.message),
@@ -68,7 +70,7 @@ class GenerationReportDialog extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
               if (result.warnings.isNotEmpty) ...[
-                Text('Warnings',
+                Text(l10n.warnings,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
@@ -77,7 +79,7 @@ class GenerationReportDialog extends StatelessWidget {
                 for (final w in result.warnings) _bullet(w),
                 const SizedBox(height: 16),
               ],
-              Text('Per-employee statistics',
+              Text(l10n.perEmployeeStats,
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
@@ -95,16 +97,17 @@ class GenerationReportDialog extends StatelessWidget {
                   4: FlexColumnWidth(1.4),
                 },
                 children: [
-                  const TableRow(children: [
+                  TableRow(children: [
                     Padding(
-                        padding: EdgeInsets.all(4), child: Text('Employee')),
+                        padding: const EdgeInsets.all(4), child: Text(l10n.employee)),
                     Padding(
-                        padding: EdgeInsets.all(4), child: Text('Hours')),
-                    Padding(padding: EdgeInsets.all(4), child: Text('Shifts')),
+                        padding: const EdgeInsets.all(4), child: Text(l10n.colHours)),
                     Padding(
-                        padding: EdgeInsets.all(4), child: Text('Nights')),
+                        padding: const EdgeInsets.all(4), child: Text(l10n.colShifts)),
                     Padding(
-                        padding: EdgeInsets.all(4), child: Text('Weekend')),
+                        padding: const EdgeInsets.all(4), child: Text(l10n.colNights)),
+                    Padding(
+                        padding: const EdgeInsets.all(4), child: Text(l10n.colWeekend)),
                   ]),
                   ...result.employeeStats.map((s) => TableRow(children: [
                         Padding(
@@ -133,7 +136,7 @@ class GenerationReportDialog extends StatelessWidget {
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Review Draft'),
+          child: Text(AppLocalizations.of(context)!.reviewDraft),
         ),
       ],
     );
@@ -141,6 +144,7 @@ class GenerationReportDialog extends StatelessWidget {
 
   Widget _summaryCard(
       BuildContext context, WeekCoverageResult coverage, Color statusColor) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -152,14 +156,14 @@ class GenerationReportDialog extends StatelessWidget {
         spacing: 24,
         runSpacing: 8,
         children: [
-          _stat('Coverage', '${coverage.coveragePercentage.toStringAsFixed(1)}%'),
-          _stat('Scheduled', '${coverage.totalScheduled}/${coverage.totalRequired}'),
-          _stat('Missing', '${coverage.totalMissing}'),
-          _stat('Extra', '${coverage.totalExtra}'),
+          _stat(l10n.coverage, '${coverage.coveragePercentage.toStringAsFixed(1)}%'),
+          _stat(l10n.colScheduled, '${coverage.totalScheduled}/${coverage.totalRequired}'),
+          _stat(l10n.missingLabel, '${coverage.totalMissing}'),
+          _stat(l10n.extraLabel, '${coverage.totalExtra}'),
           Chip(
             backgroundColor: statusColor,
             label: Text(
-              result.isFullyValid ? 'VALID' : 'NEEDS REVIEW',
+              result.isFullyValid ? l10n.valid : l10n.needsReview,
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold),
             ),

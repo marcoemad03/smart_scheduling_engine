@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/core/theme/app_theme.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
+import 'package:reception_workforce_scheduler/core/utils/directional_icons.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/conflict_detector.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/dialogs/assignment_dialog.dart';
@@ -46,10 +48,10 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Weekly Schedule'),
+        title: Text(AppLocalizations.of(context)!.weeklyScheduleTitle),
         actions: [
           IconButton(
-            icon: const Icon(Icons.chevron_left),
+            icon: Icon(DirectionalIcons.chevronBackward(context)),
             onPressed: () =>
                 ref.read(schedulerViewModelProvider.notifier).changeWeek(-1),
           ),
@@ -58,7 +60,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
               DateFormat('MMM d, yyyy').format(state.weekStart
                   .add(const Duration(days: 6)))),
           IconButton(
-            icon: const Icon(Icons.chevron_right),
+            icon: Icon(DirectionalIcons.chevronForward(context)),
             onPressed: () =>
                 ref.read(schedulerViewModelProvider.notifier).changeWeek(1),
           ),
@@ -69,7 +71,9 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
       body: state.isLoading
           ? const Center(child: CircularProgressIndicator())
           : state.error != null
-              ? Center(child: Text('Error: ${state.error}'))
+              ? Center(
+                  child: Text(AppLocalizations.of(context)!
+                      .errorPrefix(state.error!)))
               : _buildBody(context, state, days, employeeNameMap, areaNameMap),
       persistentFooterButtons: [
         _buildActionBar(context, state),
@@ -78,7 +82,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           ? null
           : FloatingActionButton.extended(
               onPressed: () => _showAddDialog(context, state, state.weekStart),
-              label: const Text('Add Shift'),
+              label: Text(AppLocalizations.of(context)!.addShift),
               icon: const Icon(Icons.add),
             ),
     );
@@ -106,10 +110,10 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           ),
         ),
         if (state.hasUnsavedChanges)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Chip(
-              label: Text('Unsaved changes'),
+              label: Text(AppLocalizations.of(context)!.unsavedChanges),
               backgroundColor: Colors.amber,
             ),
           ),
@@ -146,8 +150,8 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         Container(
           width: 150,
           padding: const EdgeInsets.all(8),
-          child: const Text('Employee',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          child: Text(AppLocalizations.of(context)!.employee,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
         ...days.map((day) => SizedBox(
               width: 200,
@@ -161,7 +165,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
                         style: const TextStyle(fontSize: 11)),
                     IconButton(
                       icon: const Icon(Icons.copy, size: 16),
-                      tooltip: 'Copy this day to another',
+                      tooltip: AppLocalizations.of(context)!.copyDayTooltip,
                       onPressed: () => _showCopyDayDialog(context, state, day),
                     ),
                   ],
@@ -214,9 +218,9 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
               width: 200,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                border: Border(
+                border: BorderDirectional(
                   bottom: BorderSide(color: Colors.grey.shade300),
-                  right: BorderSide(color: Colors.grey.shade200),
+                  end: BorderSide(color: Colors.grey.shade200),
                 ),
                 color: candidate.isNotEmpty
                     ? Colors.blue.withOpacity(0.1)
@@ -292,8 +296,8 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
                         style: const TextStyle(fontSize: 11),
                       ),
                       if (a.isLongShift)
-                        const Text('Long shift',
-                            style: TextStyle(fontSize: 10, color: Colors.deepPurple)),
+                        Text(AppLocalizations.of(context)!.longShift,
+                            style: const TextStyle(fontSize: 10, color: Colors.deepPurple)),
                     ],
                   ),
                 ),
@@ -313,6 +317,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
 
   void _showAssignmentMenu(
       BuildContext context, SchedulerState state, ScheduleAssignment a) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => Column(
@@ -320,7 +325,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         children: [
           ListTile(
             leading: const Icon(Icons.edit),
-            title: const Text('Edit'),
+            title: Text(l10n.edit),
             onTap: () {
               Navigator.pop(ctx);
               _showEditDialog(context, state, a);
@@ -328,7 +333,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           ),
           ListTile(
             leading: const Icon(Icons.copy),
-            title: const Text('Duplicate'),
+            title: Text(l10n.duplicate),
             onTap: () {
               Navigator.pop(ctx);
               ref
@@ -338,7 +343,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           ),
           ListTile(
             leading: const Icon(Icons.call_split),
-            title: const Text('Split Shift'),
+            title: Text(l10n.splitShift),
             onTap: () {
               Navigator.pop(ctx);
               _showSplitDialog(context, a);
@@ -346,7 +351,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           ),
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Delete', style: TextStyle(color: Colors.red)),
+            title: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
             onTap: () {
               Navigator.pop(ctx);
               ref
@@ -377,8 +382,8 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(result.isFullyValid
-            ? 'Draft generated — validated with no conflicts'
-            : 'Draft generated — review the report for unmet requirements'),
+            ? AppLocalizations.of(context)!.draftGeneratedValid
+            : AppLocalizations.of(context)!.draftGeneratedReview),
         backgroundColor: result.isFullyValid ? Colors.green : Colors.orange,
       ),
     );
@@ -389,17 +394,19 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
     try {
       await action();
     } catch (e) {
+      final l10n = AppLocalizations.of(context)!;
       messenger.showSnackBar(SnackBar(
         content: Text(
             e.toString().contains('CONCURRENT_MODIFICATION')
-                ? 'Another admin changed this schedule. Reload the week to get their changes.'
-                : 'Operation failed: $e'),
+                ? l10n.concurrentModification
+                : l10n.operationFailed(e.toString())),
         backgroundColor: Colors.red,
       ));
     }
   }
 
   Widget _buildActionBar(BuildContext context, SchedulerState state) {
+    final l10n = AppLocalizations.of(context)!;
     final isPublished =
         state.schedule?.status == ScheduleStatus.published;
     return Row(
@@ -407,7 +414,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
       children: [
         FilledButton.icon(
           icon: const Icon(Icons.auto_fix_high),
-          label: const Text('Generate'),
+          label: Text(l10n.generate),
           style: FilledButton.styleFrom(
             backgroundColor: Colors.deepPurple,
           ),
@@ -416,7 +423,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         const SizedBox(width: 8),
         TextButton.icon(
           icon: const Icon(Icons.content_copy),
-          label: const Text('Copy Prev Week'),
+          label: Text(l10n.copyPrevWeek),
           onPressed: () => ref
               .read(schedulerViewModelProvider.notifier)
               .copyPreviousWeek(),
@@ -424,7 +431,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         const SizedBox(width: 8),
         TextButton.icon(
           icon: const Icon(Icons.group_add),
-          label: const Text('Bulk Assign'),
+          label: Text(l10n.bulkAssign),
           onPressed: () => showDialog(
             context: context,
             builder: (_) => BulkAssignDialog(
@@ -437,19 +444,19 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         const SizedBox(width: 8),
         TextButton.icon(
           icon: const Icon(Icons.save),
-          label: const Text('Save Draft'),
+          label: Text(l10n.saveDraft),
           onPressed: () => _guard(context, () async {
             await ref.read(schedulerViewModelProvider.notifier).saveDraft();
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Draft saved')));
+                  SnackBar(content: Text(l10n.draftSaved)));
             }
           }),
         ),
         const SizedBox(width: 8),
         TextButton.icon(
           icon: const Icon(Icons.check_circle),
-          label: const Text('Validate'),
+          label: Text(l10n.validate),
           onPressed: () {
             final conflicts = ref
                 .read(schedulerViewModelProvider.notifier)
@@ -457,8 +464,8 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(conflicts.isEmpty
-                    ? 'No conflicts found'
-                    : '${conflicts.length} conflict(s) detected'),
+                    ? l10n.noConflictsFound
+                    : l10n.conflictCount('${conflicts.length}')),
                 backgroundColor:
                     conflicts.isEmpty ? Colors.green : Colors.orange,
               ),
@@ -469,28 +476,28 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         if (isPublished)
           FilledButton.tonalIcon(
             icon: const Icon(Icons.unpublished),
-            label: const Text('Unpublish'),
+            label: Text(l10n.unpublish),
             onPressed: () =>
                 ref.read(schedulerViewModelProvider.notifier).unpublish,
           )
         else
           FilledButton.icon(
             icon: const Icon(Icons.publish),
-            label: const Text('Publish'),
+            label: Text(l10n.publish),
             onPressed: () =>
                 ref.read(schedulerViewModelProvider.notifier).publish,
           ),
         const SizedBox(width: 8),
         FilledButton.tonalIcon(
           icon: const Icon(Icons.add_box),
-          label: const Text('New Version'),
+          label: Text(l10n.newVersion),
           onPressed: () =>
               ref.read(schedulerViewModelProvider.notifier).newVersion,
         ),
         const SizedBox(width: 8),
         FilledButton.tonalIcon(
           icon: const Icon(Icons.bookmark),
-          label: const Text('Templates'),
+          label: Text(l10n.templates),
           onPressed: () => showDialog(
             context: context,
             builder: (_) => TemplateDialog(
@@ -529,16 +536,17 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
   }
 
   void _showSplitDialog(BuildContext context, ScheduleAssignment a) {
+    final l10n = AppLocalizations.of(context)!;
     TimeOfDay split = TimeOfDay(
         hour: (a.startDateTime.hour + a.endDateTime.hour) ~/ 2, minute: 0);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Split Shift'),
+        title: Text(l10n.splitShift),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Split the shift at:'),
+            Text(l10n.splitTheShiftAt),
             const SizedBox(height: 8),
             InkWell(
               onTap: () async {
@@ -546,8 +554,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
                 if (t != null) setState(() => split = t);
               },
               child: InputDecorator(
-                decoration:
-                    const InputDecoration(labelText: 'Split Time'),
+                decoration: InputDecoration(labelText: l10n.splitTime),
                 child: Text(split.format(ctx)),
               ),
             ),
@@ -556,7 +563,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -565,7 +572,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
                   .splitShift(a.id, split);
               Navigator.pop(ctx);
             },
-            child: const Text('Split'),
+            child: Text(l10n.split),
           ),
         ],
       ),
@@ -574,16 +581,17 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
 
   void _showCopyDayDialog(
       BuildContext context, SchedulerState state, DateTime from) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (ctx) {
         DateTime? target = from.add(const Duration(days: 1));
         return AlertDialog(
-          title: const Text('Copy Day'),
+          title: Text(l10n.copyDay),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Copy all shifts from this day to:'),
+              Text(l10n.copyAllShiftsFrom),
               const SizedBox(height: 8),
               StatefulBuilder(
                 builder: (ctx2, setState) => DropdownButton<DateTime>(
@@ -603,7 +611,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text(l10n.cancel),
             ),
             FilledButton(
               onPressed: () {
@@ -614,7 +622,7 @@ class _WeeklySchedulerPageState extends ConsumerState<WeeklySchedulerPage> {
                 }
                 Navigator.pop(ctx);
               },
-              child: const Text('Copy'),
+              child: Text(l10n.copy),
             ),
           ],
         );
@@ -637,7 +645,11 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = status.name.toUpperCase();
+    final label = switch (status) {
+      ScheduleStatus.published => AppLocalizations.of(context)!.statusPublished,
+      ScheduleStatus.archived => AppLocalizations.of(context)!.statusArchived,
+      ScheduleStatus.draft => AppLocalizations.of(context)!.statusDraft,
+    };
     final color = status == ScheduleStatus.published
         ? Colors.green
         : status == ScheduleStatus.archived

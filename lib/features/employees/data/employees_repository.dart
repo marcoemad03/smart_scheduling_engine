@@ -39,6 +39,7 @@ class EmployeesViewModel extends StateNotifier<AsyncValue<List<Employee>>> {
       isActive: d['isActive'] as bool? ?? true,
       employeeCode: d['employeeCode'] as String? ?? '',
       notes: d['notes'] as String? ?? '',
+      authUid: d['authUid'] as String? ?? '',
       createdAt: d['createdAt'] != null
           ? (d['createdAt'] as Timestamp).toDate()
           : DateTime.now(),
@@ -61,9 +62,26 @@ class EmployeesViewModel extends StateNotifier<AsyncValue<List<Employee>>> {
       'isActive': e.isActive,
       'employeeCode': e.employeeCode,
       'notes': e.notes,
+      'authUid': e.authUid,
       'createdAt': Timestamp.fromDate(e.createdAt),
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     }, SetOptions(merge: true));
+  }
+
+  /// Hard-deletes the employee profile document. The Firebase Auth account
+  /// is intentionally NOT deleted (requires Admin SDK); deactivate the
+  /// employee instead to revoke scheduling access.
+  Future<void> delete(Employee e) async {
+    await firestore.collection('employees').doc(e.id).delete();
+    if (e.hasAccount) {
+      // Remove the login profile so the account can no longer sign in to
+      // this app (the Auth record itself remains but has no profile).
+      try {
+        await firestore.collection('users').doc(e.authUid).delete();
+      } catch (_) {
+        // Profile doc may not exist; the employee record removal is primary.
+      }
+    }
   }
 
   Future<void> setActive(Employee e, bool active) async {

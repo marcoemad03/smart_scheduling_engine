@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
@@ -12,7 +13,7 @@ class AreaManagementPage extends ConsumerWidget {
     final areasAsync = ref.watch(areaListViewModelProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Areas Management')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.areasTitle)),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAreaDialog(context, ref, null),
         child: const Icon(Icons.add),
@@ -22,21 +23,23 @@ class AreaManagementPage extends ConsumerWidget {
             ? _emptyState(context)
             : _buildAreaList(context, ref, areas),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Error: $error')),
+        error: (error, _) => Center(
+            child: Text(AppLocalizations.of(context)!.errorPrefix('$error'))),
       ),
     );
   }
 
   Widget _emptyState(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.room_outlined, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 16),
-          Text('No areas defined yet', style: Theme.of(context).textTheme.titleMedium),
+          Text(l10n.noAreasYet, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Add your first reception area', style: Theme.of(context).textTheme.bodySmall),
+          Text(l10n.addFirstArea, style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
@@ -53,7 +56,7 @@ class AreaManagementPage extends ConsumerWidget {
           onDismissed: (direction) => _confirmDelete(context, ref, area),
           background: Container(
             color: Colors.red,
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerEnd,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: const Icon(Icons.delete_outline, color: Colors.white),
           ),
@@ -66,7 +69,9 @@ class AreaManagementPage extends ConsumerWidget {
                   Text(area.name.isNotEmpty ? area.name.substring(0, 1) : '?'),
             ),
             title: Text(area.name),
-            subtitle: Text(area.description.isEmpty ? 'No description' : area.description),
+            subtitle: Text(area.description.isEmpty
+                ? AppLocalizations.of(context)!.noDescription
+                : area.description),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -111,6 +116,7 @@ class AreaManagementPage extends ConsumerWidget {
   };
 
   void _showAreaDialog(BuildContext context, WidgetRef ref, ReceptionArea? area) {
+    final l10n = AppLocalizations.of(context)!;
     final nameController = TextEditingController(text: area?.name ?? '');
     final descController = TextEditingController(text: area?.description ?? '');
     String? selectedIcon = area?.icon;
@@ -119,24 +125,24 @@ class AreaManagementPage extends ConsumerWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (ctx2, setDialog) => AlertDialog(
-          title: Text(area == null ? 'Add Area' : 'Edit Area'),
+          title: Text(area == null ? l10n.addArea : l10n.editArea),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(labelText: l10n.name),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: descController,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: InputDecoration(labelText: l10n.description),
               ),
               const SizedBox(height: 16),
-              const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Icon (optional)',
-                      style: TextStyle(fontSize: 12))),
+              Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(l10n.iconOptional,
+                      style: const TextStyle(fontSize: 12))),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -157,7 +163,7 @@ class AreaManagementPage extends ConsumerWidget {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
             TextButton(
               onPressed: () {
                 final newArea = ReceptionArea(
@@ -178,7 +184,7 @@ class AreaManagementPage extends ConsumerWidget {
                   Navigator.pop(context);
                 }
               },
-              child: const Text('Save'),
+              child: Text(l10n.save),
             ),
           ],
         ),
@@ -187,19 +193,20 @@ class AreaManagementPage extends ConsumerWidget {
   }
 
   void _confirmDelete(BuildContext context, WidgetRef ref, ReceptionArea area) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Area'),
-        content: Text('Are you sure you want to delete "${area.name}"?'),
+        title: Text(l10n.deleteAreaTitle),
+        content: Text(l10n.deleteAreaConfirm(area.name)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancel)),
           TextButton(
             onPressed: () {
               ref.read(areaActionsProvider).deleteArea(area.areaId);
               Navigator.pop(context);
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(l10n.delete, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -73,18 +74,19 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('My Availability')),
+      appBar: AppBar(title: Text(l10n.myAvailabilityTitle)),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
-        label: const Text('Add'),
+        label: Text(l10n.addLabel),
         onPressed: () => _showDialog(context, defaultAvailable: true),
       ),
       body: StreamBuilder<List<AvailabilityBlock>>(
         stream: _myBlocks,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(child: Text(l10n.errorPrefix('${snapshot.error}')));
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -92,9 +94,8 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
           final blocks = snapshot.data!
             ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
           if (blocks.isEmpty) {
-            return const Center(
-                child:
-                    Text('No availability entries. Add when you are unavailable or available.'));
+            return Center(
+                child: Text(l10n.noAvailabilityEntries));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -111,8 +112,8 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                   title: Text(
                       '${DateFormat('EEE, MMM d • HH:mm').format(b.startDateTime)} → ${DateFormat('HH:mm').format(b.endDateTime)}'),
                   subtitle: Text(b.isAvailable
-                      ? 'Available'
-                      : 'Unavailable${b.isRecurring ? ' (recurring)' : ''}'),
+                      ? l10n.available
+                      : '${l10n.unavailable}${b.isRecurring ? ' ${l10n.recurringLabel}' : ''}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: Colors.red),
                     onPressed: () => _delete(b.availabilityId),
@@ -127,6 +128,16 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
   }
 
   void _showDialog(BuildContext context, {required bool defaultAvailable}) {
+    final l10n = AppLocalizations.of(context)!;
+    final dayShorts = [
+      l10n.dayShortMon,
+      l10n.dayShortTue,
+      l10n.dayShortWed,
+      l10n.dayShortThu,
+      l10n.dayShortFri,
+      l10n.dayShortSat,
+      l10n.dayShortSun,
+    ];
     var isAvailable = defaultAvailable;
     var recurring = false;
     var start = DateTime.now();
@@ -137,15 +148,15 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setDialog) => AlertDialog(
-          title: const Text('Set Availability'),
+          title: Text(l10n.setAvailabilityTitle),
           content: SizedBox(
             width: 400,
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(value: true, label: Text('Available')),
-                    ButtonSegment(value: false, label: Text('Unavailable')),
+                  segments: [
+                    ButtonSegment(value: true, label: Text(l10n.available)),
+                    ButtonSegment(value: false, label: Text(l10n.unavailable)),
                   ],
                   selected: {isAvailable},
                   onSelectionChanged: (s) =>
@@ -166,7 +177,7 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                     }
                   },
                   child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Date'),
+                    decoration: InputDecoration(labelText: l10n.date),
                     child: Text(DateFormat('EEE, MMM d, yyyy').format(start)),
                   ),
                 ),
@@ -186,7 +197,7 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                     },
                     child: InputDecorator(
                       decoration:
-                          const InputDecoration(labelText: 'From'),
+                          InputDecoration(labelText: l10n.from),
                       child: Text(DateFormat('HH:mm').format(start)),
                     ),
                   )),
@@ -209,7 +220,7 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                       }
                     },
                     child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'To'),
+                      decoration: InputDecoration(labelText: l10n.to),
                       child: Text(DateFormat('HH:mm').format(end)),
                     ),
                   )),
@@ -217,8 +228,8 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                 const SizedBox(height: 8),
                 CheckboxListTile(
                   value: recurring,
-                  title: const Text('Repeat weekly on:',
-                      style: TextStyle(fontSize: 13)),
+                  title: Text(l10n.repeatWeeklyOn,
+                      style: const TextStyle(fontSize: 13)),
                   onChanged: (v) => setDialog(() => recurring = v ?? false),
                 ),
                 if (recurring)
@@ -226,10 +237,9 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                     spacing: 4,
                     children: List.generate(7, (i) {
                       final day = i + 1;
-                      final label =
-                          ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i];
                       return FilterChip(
-                        label: Text(label, style: const TextStyle(fontSize: 11)),
+                        label: Text(dayShorts[i],
+                            style: const TextStyle(fontSize: 11)),
                         selected: days.contains(day),
                         onSelected: (sel) => setDialog(() {
                           sel ? days.add(day) : days.remove(day);
@@ -243,7 +253,7 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx2),
-                child: const Text('Cancel')),
+                child: Text(l10n.cancel)),
             FilledButton(
               onPressed: () {
                 _submit(
@@ -257,7 +267,7 @@ class _AvailabilityPageState extends ConsumerState<AvailabilityPage> {
                 );
                 Navigator.pop(ctx2);
               },
-              child: const Text('Save'),
+              child: Text(l10n.save),
             ),
           ],
         ),

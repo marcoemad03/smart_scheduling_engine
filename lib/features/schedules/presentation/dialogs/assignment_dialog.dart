@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/features/areas/domain/entities/reception_area.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
@@ -56,9 +57,18 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isEdit = widget.assignment != null;
+    final selectedEmployee = widget.employees
+        .where((e) => e.id == employeeId)
+        .firstOrNull;
+    final selectedArea = widget.areas.where((a) => a.areaId == areaId).firstOrNull;
+    final areaNotAllowed = selectedEmployee != null &&
+        selectedArea != null &&
+        !selectedEmployee.isAllowedInArea(selectedArea.areaId);
+
     return AlertDialog(
-      title: Text(isEdit ? 'Edit Shift' : 'Add Shift'),
+      title: Text(isEdit ? l10n.editShift : l10n.addShift),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -69,7 +79,7 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
               children: [
                 DropdownButtonFormField<String>(
                   value: employeeId,
-                  decoration: const InputDecoration(labelText: 'Employee'),
+                  decoration: InputDecoration(labelText: l10n.employee),
                   items: widget.employees
                       .map((e) => DropdownMenuItem(
                             value: e.id,
@@ -77,21 +87,55 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
                           ))
                       .toList(),
                   onChanged: (v) => setState(() => employeeId = v),
-                  validator: (v) => v == null ? 'Required' : null,
+                  validator: (v) => v == null ? l10n.required : null,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: areaId,
-                  decoration: const InputDecoration(labelText: 'Area'),
-                  items: widget.areas
-                      .map((a) => DropdownMenuItem(
-                            value: a.areaId,
-                            child: Text(a.name + (a.isActive ? '' : ' (inactive)')),
-                          ))
-                      .toList(),
+                  decoration: InputDecoration(labelText: l10n.colArea),
+                  items: widget.areas.map((a) {
+                    final allowed =
+                        selectedEmployee?.isAllowedInArea(a.areaId) ?? true;
+                    return DropdownMenuItem(
+                      value: a.areaId,
+                      child: Text(
+                        a.name +
+                            (a.isActive ? '' : ' ${l10n.inactiveArea}') +
+                            (allowed
+                                ? ''
+                                : ' (${l10n.areaNotAllowedSuffix})'),
+                        style: allowed
+                            ? null
+                            : TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
+                    );
+                  }).toList(),
                   onChanged: (v) => setState(() => areaId = v),
-                  validator: (v) => v == null ? 'Required' : null,
+                  validator: (v) => v == null ? l10n.required : null,
                 ),
+                if (areaNotAllowed) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.warning_amber_rounded,
+                          color: Colors.orange, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.areaNotAllowedWarning(selectedArea.name),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -106,7 +150,7 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
                         },
                         child: InputDecorator(
                           decoration:
-                              const InputDecoration(labelText: 'Start Time'),
+                              InputDecoration(labelText: l10n.startTime),
                           child: Text(startTime.format(context)),
                         ),
                       ),
@@ -123,7 +167,7 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
                         },
                         child: InputDecorator(
                           decoration:
-                              const InputDecoration(labelText: 'End Time'),
+                              InputDecoration(labelText: l10n.endTime),
                           child: Text(endTime.format(context)),
                         ),
                       ),
@@ -131,14 +175,14 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'If End Time is before Start Time, the shift is treated as overnight (next day).',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                Text(
+                  l10n.overnightNote,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: notesController,
-                  decoration: const InputDecoration(labelText: 'Notes (optional)'),
+                  decoration: InputDecoration(labelText: l10n.notesOptional),
                   maxLines: 2,
                 ),
               ],
@@ -149,11 +193,11 @@ class _AssignmentDialogState extends ConsumerState<AssignmentDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _submit,
-          child: Text(isEdit ? 'Save' : 'Add'),
+          child: Text(isEdit ? l10n.save : l10n.add),
         ),
       ],
     );

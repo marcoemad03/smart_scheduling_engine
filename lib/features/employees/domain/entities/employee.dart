@@ -10,6 +10,7 @@ class Employee {
   final bool isActive;
   final String employeeCode;
   final String notes;
+  final String authUid;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,12 +26,21 @@ class Employee {
     required this.isActive,
     this.employeeCode = '',
     this.notes = '',
+    this.authUid = '',
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
   String get fullName => '$firstName $lastName';
+
+  /// Whether this employee profile is linked to a Firebase Auth account.
+  bool get hasAccount => authUid.isNotEmpty;
+
+  /// Whether the employee is allowed to work in [areaId]. An employee with
+  /// no explicit allowed areas may work everywhere (existing behavior).
+  bool isAllowedInArea(String areaId) =>
+      preferredAreas.isEmpty || preferredAreas.contains(areaId);
 
   Employee copyWith({
     String? firstName,
@@ -42,6 +52,7 @@ class Employee {
     bool? isActive,
     String? employeeCode,
     String? notes,
+    String? authUid,
   }) {
     return Employee(
       id: id,
@@ -55,6 +66,7 @@ class Employee {
       isActive: isActive ?? this.isActive,
       employeeCode: employeeCode ?? this.employeeCode,
       notes: notes ?? this.notes,
+      authUid: authUid ?? this.authUid,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );

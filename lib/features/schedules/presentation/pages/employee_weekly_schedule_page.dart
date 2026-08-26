@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
+import 'package:reception_workforce_scheduler/core/utils/directional_icons.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/providers/employee_schedule_providers.dart';
 
 /// Read-only weekly view of the employee's OWN published schedule.
@@ -39,17 +41,19 @@ class _EmployeeWeeklySchedulePageState
             '${DateFormat('MMM d').format(_weekStart)} - ${DateFormat('MMM d, yyyy').format(_weekStart.add(const Duration(days: 6)))}'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.chevron_left), onPressed: () => _changeWeek(-1)),
+              icon: Icon(DirectionalIcons.chevronBackward(context)), onPressed: () => _changeWeek(-1)),
           IconButton(
-              icon: const Icon(Icons.chevron_right), onPressed: () => _changeWeek(1)),
+              icon: Icon(DirectionalIcons.chevronForward(context)), onPressed: () => _changeWeek(1)),
         ],
       ),
       body: weekAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+            child: Text(AppLocalizations.of(context)!.errorPrefix('$e'))),
         data: (week) {
+          final employeeId2 = employeeId;
           final shifts = week
-              .myAssignments(employeeId)
+              .myAssignments(employeeId2)
               .where((a) =>
                   !a.startDateTime
                       .isBefore(_weekStart.subtract(const Duration(days: 1))) &&
@@ -59,11 +63,12 @@ class _EmployeeWeeklySchedulePageState
             ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
 
           if (week.publishedSchedule == null) {
-            return const Center(
-                child: Text('No published schedule for this week yet.'));
+            return Center(
+                child: Text(AppLocalizations.of(context)!.noPublishedWeekYet));
           }
           if (shifts.isEmpty) {
-            return const Center(child: Text('No shifts assigned this week.'));
+            return Center(
+                child: Text(AppLocalizations.of(context)!.noShiftsWeek));
           }
 
           final isDesktop = MediaQuery.of(context).size.width > 768;
@@ -82,15 +87,16 @@ class _EmployeeWeeklySchedulePageState
 
   Widget _shiftRows(List shifts, Map<String, String> areaNames,
       {required bool asTable}) {
+    final l10n = AppLocalizations.of(context)!;
     if (asTable) {
-      return DataTable(columns: const [
-        DataColumn(label: Text('Date')),
-        DataColumn(label: Text('Start')),
-        DataColumn(label: Text('End')),
-        DataColumn(label: Text('Area')),
-        DataColumn(label: Text('Shift')),
-        DataColumn(label: Text('Duration')),
-        DataColumn(label: Text('Status')),
+      return DataTable(columns: [
+        DataColumn(label: Text(l10n.colDate)),
+        DataColumn(label: Text(l10n.colStart)),
+        DataColumn(label: Text(l10n.colEnd)),
+        DataColumn(label: Text(l10n.colArea)),
+        DataColumn(label: Text(l10n.colShift)),
+        DataColumn(label: Text(l10n.colDuration)),
+        DataColumn(label: Text(l10n.colStatus)),
       ], rows: shifts.map<DataRow>((a) {
         return DataRow(cells: [
           DataCell(Text(DateFormat('EEE, MMM d').format(a.scheduledDate))),
@@ -141,25 +147,32 @@ class _EmployeeWeeklySchedulePageState
       _shiftRows(shifts, areaNames, asTable: false);
 
   String _shiftName(dynamic a) {
-    if (a.isOvernight) return 'Night shift';
+    final l10n = AppLocalizations.of(context)!;
+    if (a.isOvernight) return l10n.nightShift;
     if (a.shiftTemplateId != null && a.shiftTemplateId.isNotEmpty) {
       return a.shiftTemplateId;
     }
     final startMin = a.startDateTime.hour * 60 + a.startDateTime.minute;
-    if (startMin < 720) return 'Morning shift';
-    if (startMin < 1080) return 'Evening shift';
-    return 'Late shift';
+    if (startMin < 720) return l10n.morningShift;
+    if (startMin < 1080) return l10n.eveningShift;
+    return l10n.lateShift;
   }
 
   Widget _statusChip(String status) {
+    final l10n = AppLocalizations.of(context)!;
     final color = status == 'published'
         ? Colors.green
         : status == 'overridden'
             ? Colors.orange
             : Colors.grey;
+    final label = status == 'published'
+        ? l10n.statusPublished
+        : status == 'overridden'
+            ? l10n.statusOverridden
+            : l10n.statusDraft;
     return Chip(
       backgroundColor: color.withOpacity(0.15),
-      label: Text(status,
+      label: Text(label,
           style: TextStyle(color: color, fontSize: 11)),
     );
   }

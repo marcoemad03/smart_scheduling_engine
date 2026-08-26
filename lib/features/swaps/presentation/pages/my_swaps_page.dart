@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
@@ -17,12 +18,13 @@ class MySwapsPage extends ConsumerWidget {
     final swapsAsync = ref.watch(mySwapsViewModelProvider);
     final weekAsync =
         ref.watch(myWeekProvider(DateTimeUtils.getStartOfWeek(DateTime.now())));
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Swap Shift')),
+      appBar: AppBar(title: Text(l10n.swapShift)),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.swap_horiz),
-        label: const Text('Request Swap'),
+        label: Text(l10n.requestSwap),
         onPressed: () async {
           final week = weekAsync.asData?.value;
           if (week == null) return;
@@ -32,8 +34,8 @@ class MySwapsPage extends ConsumerWidget {
               .toList()
             ..sort((a, b) => a.startDateTime.compareTo(b.startDateTime));
           if (myShifts.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('You have no upcoming shifts to swap.')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(l10n.noUpcomingShiftsSwap)));
             return;
           }
           _showSwapDialog(context, ref, myShifts);
@@ -41,10 +43,10 @@ class MySwapsPage extends ConsumerWidget {
       ),
       body: swapsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('No swap requests yet.'));
+            return Center(child: Text(l10n.noSwapRequestsYet));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -55,12 +57,12 @@ class MySwapsPage extends ConsumerWidget {
                 margin: const EdgeInsets.only(bottom: 10),
                 child: ListTile(
                   leading: const Icon(Icons.swap_horiz_outlined),
-                  title: Text(
-                      'Shift on ${DateFormat('EEE, MMM d • HH:mm').format(r.preferredDatetime)}'),
+                  title: Text(l10n.shiftOn(
+                      DateFormat('EEE, MMM d • HH:mm').format(r.preferredDatetime))),
                   subtitle: Text(r.notes.isEmpty
-                      ? 'Requested ${DateFormat('MMM d').format(r.createdAt)}'
+                      ? l10n.requestedOn(DateFormat('MMM d').format(r.createdAt))
                       : r.notes),
-                  trailing: _statusChip(r.status),
+                  trailing: _statusChip(context, r.status),
                 ),
               );
             },
@@ -70,35 +72,43 @@ class MySwapsPage extends ConsumerWidget {
     );
   }
 
-  Widget _statusChip(SwapStatus status) {
+  Widget _statusChip(BuildContext context, SwapStatus status) {
+    final l10n = AppLocalizations.of(context)!;
     final color = switch (status) {
       SwapStatus.approved => Colors.green,
       SwapStatus.rejected => Colors.red,
       SwapStatus.cancelled => Colors.grey,
       SwapStatus.pending => Colors.orange,
     };
+    final label = switch (status) {
+      SwapStatus.approved => l10n.statusApproved,
+      SwapStatus.rejected => l10n.statusRejected,
+      SwapStatus.cancelled => l10n.statusCancelled,
+      SwapStatus.pending => l10n.statusPending,
+    };
     return Chip(
       backgroundColor: color.withOpacity(0.15),
-      label: Text(status.name,
+      label: Text(label,
           style: TextStyle(
               color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 
   void _showSwapDialog(BuildContext context, WidgetRef ref, List myShifts) {
+    final l10n = AppLocalizations.of(context)!;
     dynamic selected = myShifts.first;
     final notesController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Request Shift Swap'),
+        title: Text(l10n.requestShiftSwap),
         content: SizedBox(
           width: 380,
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Select your shift:')),
+            Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(l10n.selectYourShift)),
             StatefulBuilder(
               builder: (ctx2, setDialog) =>
                   DropdownButton<dynamic>(
@@ -117,19 +127,19 @@ class MySwapsPage extends ConsumerWidget {
             const SizedBox(height: 12),
             TextField(
               controller: notesController,
-              decoration: const InputDecoration(
-                  labelText: 'Reason / preferred colleague (optional)'),
+              decoration: InputDecoration(
+                  labelText: l10n.reasonColleague),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'The swap takes effect only after admin approval.',
-              style: TextStyle(fontSize: 11, color: Colors.grey),
+            Text(
+              l10n.swapApprovalNote,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ]),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
           FilledButton(
             onPressed: () {
               ref.read(mySwapsViewModelProvider.notifier).submit(
@@ -139,7 +149,7 @@ class MySwapsPage extends ConsumerWidget {
                   );
               Navigator.pop(ctx);
             },
-            child: const Text('Submit'),
+            child: Text(l10n.submit),
           ),
         ],
       ),

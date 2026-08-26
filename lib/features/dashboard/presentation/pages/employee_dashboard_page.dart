@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
@@ -19,7 +20,7 @@ class EmployeeDashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Dashboard'),
+        title: Text(AppLocalizations.of(context)!.myDashboardTitle),
         actions: [
           Stack(alignment: Alignment.center, children: [
             IconButton(
@@ -27,9 +28,9 @@ class EmployeeDashboardPage extends ConsumerWidget {
               onPressed: () => context.go('/employee/notifications'),
             ),
             if (unread > 0)
-              Positioned(
+              PositionedDirectional(
                 top: 8,
-                right: 8,
+                end: 8,
                 child: Badge(label: Text('$unread')),
               ),
           ]),
@@ -37,8 +38,10 @@ class EmployeeDashboardPage extends ConsumerWidget {
       ),
       body: weekAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+            child: Text(AppLocalizations.of(context)!.errorPrefix('$e'))),
         data: (week) {
+          final l10n = AppLocalizations.of(context)!;
           final myShifts = week.myAssignments(employeeId);
           final status = EmployeeShiftStatus.compute(
             now: DateTime.now(),
@@ -51,22 +54,20 @@ class EmployeeDashboardPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Welcome Back!',
+                Text(l10n.welcomeBack,
                     style: Theme.of(context)
                         .textTheme
                         .headlineMedium
                         ?.copyWith(fontWeight: FontWeight.bold)),
                 if (nothingPublished) ...[
                   const SizedBox(height: 8),
-                  const Card(
+                  Card(
                     child: Padding(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       child: Row(children: [
-                        Icon(Icons.info_outline),
-                        SizedBox(width: 8),
-                        Expanded(
-                            child: Text(
-                                'No schedule has been published for this week yet.')),
+                        const Icon(Icons.info_outline),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(l10n.noPublishedWeek)),
                       ]),
                     ),
                   ),
@@ -89,7 +90,7 @@ class EmployeeDashboardPage extends ConsumerWidget {
                 const SizedBox(height: 16),
                 NextShiftCard(next: status.nextShift, areaNames: week.areaNames),
                 const SizedBox(height: 24),
-                Text('Quick Actions',
+                Text(l10n.quickActions,
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -105,6 +106,7 @@ class EmployeeDashboardPage extends ConsumerWidget {
   }
 
   Widget _quickActions(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDesktop = MediaQuery.of(context).size.width > 768;
     return GridView.count(
       crossAxisCount: isDesktop ? 4 : 2,
@@ -114,15 +116,15 @@ class EmployeeDashboardPage extends ConsumerWidget {
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: isDesktop ? 1.6 : 1.5,
       children: [
-        _actionCard(context, Icons.calendar_today_outlined, 'My Schedule',
+        _actionCard(context, Icons.calendar_today_outlined, l10n.mySchedule,
             '/employee/schedule'),
-        _actionCard(context, Icons.access_time_outlined, 'Set Availability',
+        _actionCard(context, Icons.access_time_outlined, l10n.setAvailability,
             '/employee/availability'),
-        _actionCard(context, Icons.event_busy_outlined, 'Leave / Day Off',
+        _actionCard(context, Icons.event_busy_outlined, l10n.leaveDayOff,
             '/employee/leaves'),
         _actionCard(
-            context, Icons.swap_horiz_outlined, 'Swap Shift', '/employee/swaps'),
-        _actionCard(context, Icons.fact_check_outlined, 'My Attendance',
+            context, Icons.swap_horiz_outlined, l10n.swapShift, '/employee/swaps'),
+        _actionCard(context, Icons.fact_check_outlined, l10n.myAttendance,
             '/employee/attendance'),
       ],
     );

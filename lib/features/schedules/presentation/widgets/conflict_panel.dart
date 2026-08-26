@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reception_workforce_scheduler/core/constants/enums.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/services/conflict_detector.dart';
@@ -23,22 +24,24 @@ class ConflictPanel extends ConsumerWidget {
         .select((s) => s.overriddenAssignmentIds));
 
     if (conflicts.isEmpty) {
-      return const Card(
+      final l10n = AppLocalizations.of(context)!;
+      return Card(
         color: Colors.green,
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('No conflicts detected',
-                  style: TextStyle(color: Colors.white)),
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(l10n.noConflictsDetected,
+                  style: const TextStyle(color: Colors.white)),
             ],
           ),
         ),
       );
     }
 
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       color: Colors.orange.shade50,
       child: ExpansionTile(
@@ -46,7 +49,7 @@ class ConflictPanel extends ConsumerWidget {
           label: Text('${conflicts.length}'),
           child: const Icon(Icons.warning_amber_rounded),
         ),
-        title: const Text('Conflicts Detected'),
+        title: Text(l10n.conflictsDetected),
         children: conflicts.map((c) {
           final isOverridden = c.assignmentId1 != null &&
               overridden.contains(c.assignmentId1);
@@ -61,12 +64,12 @@ class ConflictPanel extends ConsumerWidget {
             ),
             title: Text(c.message),
             subtitle: Text(
-              _contextLabel(c),
+              _contextLabel(l10n, c),
               style: const TextStyle(fontSize: 11),
             ),
             trailing: isOverridden
-                ? const Chip(
-                    label: Text('Overridden'),
+                ? Chip(
+                    label: Text(l10n.overridden),
                     backgroundColor: Colors.green,
                   )
                 : c.isOverrideAllowed
@@ -74,7 +77,7 @@ class ConflictPanel extends ConsumerWidget {
                         onPressed: c.assignmentId1 != null
                             ? () => vm.overrideConflict(c.assignmentId1!)
                             : null,
-                        child: const Text('Allow Override'),
+                        child: Text(l10n.allowOverride),
                       )
                     : null,
           );
@@ -83,13 +86,14 @@ class ConflictPanel extends ConsumerWidget {
     );
   }
 
-  String _contextLabel(ScheduleConflict c) {
+  String _contextLabel(AppLocalizations l10n, ScheduleConflict c) {
     final parts = <String>[];
     if (c.employeeId != null) {
-      parts.add('Employee: ${employeeNames[c.employeeId] ?? c.employeeId}');
+      parts.add(
+          l10n.employeeColon(employeeNames[c.employeeId] ?? c.employeeId ?? ''));
     }
     if (c.areaId != null) {
-      parts.add('Area: ${areaNames[c.areaId] ?? c.areaId}');
+      parts.add(l10n.areaColon(areaNames[c.areaId] ?? c.areaId ?? ''));
     }
     return parts.join(' • ');
   }

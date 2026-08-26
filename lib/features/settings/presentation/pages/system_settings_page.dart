@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:reception_workforce_scheduler/core/locale/locale_providers.dart';
 import 'package:reception_workforce_scheduler/features/settings/data/system_settings_repository.dart';
 import 'package:reception_workforce_scheduler/features/settings/domain/entities/system_settings.dart';
 
@@ -109,65 +111,64 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
     await ref.read(systemSettingsViewModelProvider.notifier).save(settings);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved')));
+          SnackBar(content: Text(AppLocalizations.of(context)!.settingsSaved)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(systemSettingsViewModelProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scheduling Rules'),
+        title: Text(l10n.schedulingRulesTitle),
         actions: [
           IconButton(icon: const Icon(Icons.save), onPressed: _save),
         ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
         data: (s) {
           _loadInto(s);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _section(context, 'Hours & Limits', [
-                _numberField(_maxHours, 'Maximum weekly hours (default)'),
-                _numberField(_overtimeHours, 'Maximum overtime hours per week'),
-                _numberField(_restMinutes, 'Minimum rest hours between shifts'),
-                _numberField(_consecutiveDays,
-                    'Maximum consecutive working days'),
+              _languageSection(context),
+              _section(context, l10n.sectionHoursLimits, [
+                _numberField(_maxHours, l10n.maxWeeklyHoursDefault),
+                _numberField(_overtimeHours, l10n.maxOvertimePerWeek),
+                _numberField(_restMinutes, l10n.minRestHours),
+                _numberField(_consecutiveDays, l10n.maxConsecutiveDays),
               ]),
-              _section(context, 'Allowed Scheduling Practices', [
+              _section(context, l10n.sectionPractices, [
                 SwitchListTile(
-                  title: const Text('Allow schedule override'),
-                  subtitle: const Text(
-                      'Admin may keep assignments that violate warnings'),
+                  title: Text(l10n.allowOverride),
+                  subtitle: Text(l10n.allowOverrideDesc),
                   value: _allowOverride,
                   onChanged: (v) => setState(() => _allowOverride = v),
                 ),
                 SwitchListTile(
-                  title: const Text('Allow long shifts (≥ 12h)'),
+                  title: Text(l10n.allowLongShifts),
                   value: _allowLongShifts,
                   onChanged: (v) => setState(() => _allowLongShifts = v),
                 ),
                 SwitchListTile(
-                  title: const Text('Allow split shifts'),
+                  title: Text(l10n.allowSplitShifts),
                   value: _allowSplitShifts,
                   onChanged: (v) => setState(() => _allowSplitShifts = v),
                 ),
                 SwitchListTile(
-                  title: const Text('Allow custom schedules'),
-                  subtitle: const Text(
-                      'Custom start/end times beyond shift templates'),
+                  title: Text(l10n.allowCustomSchedules),
+                  subtitle: Text(l10n.allowCustomSchedulesDesc),
                   value: _customSchedules,
                   onChanged: (v) => setState(() => _customSchedules = v),
                 ),
               ]),
-              _section(context, 'General', [
+              _section(context, l10n.sectionGeneral, [
                 ListTile(
-                  title: const Text('Working hours start'),
+                  title: Text(l10n.workingHoursStart),
                   trailing: SizedBox(
                     width: 100,
                     child: TextFormField(
@@ -179,7 +180,7 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
                   ),
                 ),
                 ListTile(
-                  title: const Text('Working hours end'),
+                  title: Text(l10n.workingHoursEnd),
                   trailing: SizedBox(
                     width: 100,
                     child: TextFormField(
@@ -192,7 +193,7 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
                 ),
                 DropdownButtonFormField<String>(
                   value: _timezones.contains(_timezone) ? _timezone : _timezones.first,
-                  decoration: const InputDecoration(labelText: 'Timezone'),
+                  decoration: InputDecoration(labelText: l10n.timezone),
                   items: _timezones
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
@@ -201,15 +202,15 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
                 DropdownButtonFormField<int>(
                   value: _weekStartDay,
                   decoration:
-                      const InputDecoration(labelText: 'Week starts on'),
-                  items: const [
-                    DropdownMenuItem(value: 1, child: Text('Monday')),
-                    DropdownMenuItem(value: 7, child: Text('Sunday')),
+                      InputDecoration(labelText: l10n.weekStartsOn),
+                  items: [
+                    DropdownMenuItem(value: 1, child: Text(l10n.monday)),
+                    DropdownMenuItem(value: 7, child: Text(l10n.sunday)),
                   ],
                   onChanged: (v) => setState(() => _weekStartDay = v!),
                 ),
                 SwitchListTile(
-                  title: const Text('Enable attendance tracking'),
+                  title: Text(l10n.enableAttendanceTracking),
                   value: _attendance,
                   onChanged: (v) => setState(() => _attendance = v),
                 ),
@@ -218,6 +219,47 @@ class _SystemSettingsPageState extends ConsumerState<SystemSettingsPage> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// Language selector: switches the whole app immediately and persists the
+  /// choice locally (survives restarts). Arabic is the default language.
+  Widget _languageSection(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final current = ref.watch(localeControllerProvider);
+    final controller = ref.read(localeControllerProvider.notifier);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.languageSection,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(
+                  value: 'ar',
+                  label: Text('${'🇪🇬'} ${l10n.arabic}'),
+                ),
+                ButtonSegment(
+                  value: 'en',
+                  label: Text('${'🇬🇧'} ${l10n.english}'),
+                ),
+              ],
+              selected: {current.languageCode},
+              onSelectionChanged: (selection) =>
+                  controller.setLocale(Locale(selection.first)),
+            ),
+          ],
+        ),
       ),
     );
   }

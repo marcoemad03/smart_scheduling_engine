@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
@@ -16,35 +17,35 @@ class ShiftTemplatePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(shiftTemplatesProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Shift Templates')),
+      appBar: AppBar(title: Text(l10n.shiftTemplatesTitle)),
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
-        label: const Text('Add Shift'),
+        label: Text(l10n.addShift),
         onPressed: () => _showDialog(context, ref, null),
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(l10n.errorPrefix('$e'))),
         data: (templates) {
           if (templates.isEmpty) {
-            return const Center(
-                child: Text(
-                    'No shift templates yet.\nTemplates are shortcuts — schedules always store actual start/end times.',
+            return Center(
+                child: Text(l10n.noTemplatesYet,
                     textAlign: TextAlign.center));
           }
           final isDesktop = MediaQuery.of(context).size.width > 768;
           return isDesktop
               ? ListView(padding: const EdgeInsets.all(16), children: [
-                  DataTable(columns: const [
-                    DataColumn(label: Text('Name')),
-                    DataColumn(label: Text('Start')),
-                    DataColumn(label: Text('End')),
-                    DataColumn(label: Text('Duration')),
-                    DataColumn(label: Text('Overnight')),
-                    DataColumn(label: Text('Active')),
-                    DataColumn(label: Text('Actions')),
+                  DataTable(columns: [
+                    DataColumn(label: Text(l10n.colName)),
+                    DataColumn(label: Text(l10n.colStart)),
+                    DataColumn(label: Text(l10n.colEnd)),
+                    DataColumn(label: Text(l10n.colDuration)),
+                    DataColumn(label: Text(l10n.colOvernight)),
+                    DataColumn(label: Text(l10n.colActive)),
+                    DataColumn(label: Text(l10n.colActions)),
                   ], rows: templates.map((t) {
                     final end = (t.startMinute + t.durationMinutes) % 1440;
                     final overnight = t.startMinute + t.durationMinutes > 1440;
@@ -60,7 +61,7 @@ class ShiftTemplatePage extends ConsumerWidget {
                       DataCell(Text(_fmt(t.startMinute))),
                       DataCell(Text(_fmt(end))),
                       DataCell(Text('${(t.durationMinutes / 60).toStringAsFixed(t.durationMinutes % 60 == 0 ? 0 : 1)}h')),
-                      DataCell(Text(overnight ? 'Yes' : 'No')),
+                      DataCell(Text(overnight ? l10n.yes : l10n.no)),
                       DataCell(Switch(
                         value: t.isActive,
                         onChanged: (v) => ref
@@ -103,7 +104,7 @@ class ShiftTemplatePage extends ConsumerWidget {
                         ),
                         title: Text(t.name),
                         subtitle: Text(
-                            '${_fmt(t.startMinute)} → ${_fmt(end)}${overnight ? ' (+1 day)' : ''} • ${(t.durationMinutes / 60).toStringAsFixed(t.durationMinutes % 60 == 0 ? 0 : 1)}h'),
+                            '${_fmt(t.startMinute)} → ${_fmt(end)}${overnight ? ' ${l10n.plusOneDay}' : ''} • ${(t.durationMinutes / 60).toStringAsFixed(t.durationMinutes % 60 == 0 ? 0 : 1)}h'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -135,21 +136,22 @@ class ShiftTemplatePage extends ConsumerWidget {
 
   void _confirmDelete(BuildContext context, WidgetRef ref,
       ShiftTemplateEntity t) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete template?'),
-        content: Text('"${t.name}" will be removed. Existing schedules are not affected.'),
+        title: Text(l10n.deleteTemplateTitle),
+        content: Text(l10n.deleteTemplateBody(t.name)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx), child: Text(l10n.cancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               ref.read(shiftTemplatesProvider.notifier).delete(t.templateId);
               Navigator.pop(ctx);
             },
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -158,6 +160,7 @@ class ShiftTemplatePage extends ConsumerWidget {
 
   void _showDialog(
       BuildContext context, WidgetRef ref, ShiftTemplateEntity? template) {
+    final l10n = AppLocalizations.of(context)!;
     final nameController =
         TextEditingController(text: template?.name ?? '');
     var startMinute = template?.startMinute ?? DateTimeUtils.toMinutes(8, 0);
@@ -171,7 +174,7 @@ class ShiftTemplatePage extends ConsumerWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setDialog) => AlertDialog(
           title:
-              Text(template == null ? 'Add Shift Template' : 'Edit Shift Template'),
+              Text(template == null ? l10n.addShiftTemplate : l10n.editShiftTemplate),
           content: Form(
             key: formKey,
             child: SizedBox(
@@ -181,9 +184,9 @@ class ShiftTemplatePage extends ConsumerWidget {
                   TextFormField(
                     controller: nameController,
                     decoration:
-                        const InputDecoration(labelText: 'Template Name *'),
+                        InputDecoration(labelText: l10n.templateName),
                     validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
+                        v == null || v.trim().isEmpty ? l10n.required : null,
                   ),
                   const SizedBox(height: 12),
                   Row(children: [
@@ -203,7 +206,7 @@ class ShiftTemplatePage extends ConsumerWidget {
                         },
                         child: InputDecorator(
                           decoration:
-                              const InputDecoration(labelText: 'Start Time'),
+                              InputDecoration(labelText: l10n.startTime),
                           child: Text(_fmt(startMinute)),
                         ),
                       ),
@@ -214,8 +217,8 @@ class ShiftTemplatePage extends ConsumerWidget {
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         value: duration,
-                        decoration: const InputDecoration(
-                            labelText: 'Duration (hours)'),
+                        decoration: InputDecoration(
+                            labelText: l10n.durationHours),
                         items: [4, 6, 7, 8, 10, 12, 16]
                             .map((h) => DropdownMenuItem(
                                 value: h * 60, child: Text('${h}h')))
@@ -226,26 +229,26 @@ class ShiftTemplatePage extends ConsumerWidget {
                   ]),
                   const SizedBox(height: 8),
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: Text(
-                      'Ends at ${_fmt(startMinute + duration)}'
-                      '${startMinute + duration >= 1440 ? ' (next day)' : ''}',
+                      '${l10n.endsAt(_fmt(startMinute + duration))}'
+                      '${startMinute + duration >= 1440 ? ' ${l10n.nextDay}' : ''}',
                       style:
                           const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),
                   if (startMinute + duration > 1440)
-                    const ListTile(
+                    ListTile(
                       dense: true,
-                      leading: Icon(Icons.nightlight_round, size: 16),
-                      title: Text('Overnight shift',
-                          style: TextStyle(fontSize: 13)),
+                      leading: const Icon(Icons.nightlight_round, size: 16),
+                      title: Text(l10n.overnightShift,
+                          style: const TextStyle(fontSize: 13)),
                     ),
                   const SizedBox(height: 12),
-                  const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text('Color',
-                          style: TextStyle(fontSize: 12))),
+                  Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(l10n.color,
+                          style: const TextStyle(fontSize: 12))),
                   Wrap(
                     spacing: 6,
                     children: _colors.map((c) {
@@ -263,7 +266,7 @@ class ShiftTemplatePage extends ConsumerWidget {
                     }).toList(),
                   ),
                   SwitchListTile(
-                    title: const Text('Active'),
+                    title: Text(l10n.colActive),
                     value: isActive,
                     onChanged: (v) => setDialog(() => isActive = v),
                   ),
@@ -274,7 +277,7 @@ class ShiftTemplatePage extends ConsumerWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx2),
-                child: const Text('Cancel')),
+                child: Text(l10n.cancel)),
             FilledButton(
               onPressed: () {
                 if (!formKey.currentState!.validate()) return;
@@ -296,7 +299,7 @@ class ShiftTemplatePage extends ConsumerWidget {
                     );
                 Navigator.pop(ctx2);
               },
-              child: const Text('Save'),
+              child: Text(l10n.save),
             ),
           ],
         ),
