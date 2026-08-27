@@ -394,10 +394,9 @@ class _EmployeeListPageState extends ConsumerState<EmployeeListPage> {
     // Auth role ('employee'/'admin') stored on the login profile.
     var initialRole = 'employee';
     var selectedRole = 'employee';
-    if (!isCreate && (employee?.hasAccount ?? false)) {
+    if (!isCreate && employee.hasAccount) {
       try {
-        final current =
-            await accountService.fetchUserRole(employee!.authUid);
+        final current = await accountService.fetchUserRole(employee.authUid);
         if (current != null) {
           initialRole = current;
           selectedRole = current;

@@ -16,6 +16,7 @@ import '../features/staffing/presentation/pages/staffing_requirements_page.dart'
 import '../features/settings/presentation/pages/system_settings_page.dart';
 import '../features/availability/presentation/pages/availability_page.dart';
 import '../features/schedules/presentation/pages/weekly_scheduler_page.dart';
+import '../features/schedules/presentation/pages/schedule_builder_page.dart';
 import '../features/schedules/presentation/pages/ai_assistant_page.dart';
 import '../features/schedules/presentation/pages/employee_weekly_schedule_page.dart';
 import '../features/shifts/presentation/pages/shift_template_page.dart';
@@ -76,6 +77,7 @@ class AppRoutes {
           GoRoute(path: '/admin/shifts', name: 'shifts', builder: (context, state) => const ShiftTemplatePage()),
           GoRoute(path: '/admin/staffing', name: 'staffing', builder: (context, state) => const StaffingRequirementsPage()),
           GoRoute(path: '/admin/schedules', name: 'schedules', builder: (context, state) => const WeeklySchedulerPage()),
+          GoRoute(path: '/admin/builder', name: 'builder', builder: (context, state) => const ScheduleBuilderPage()),
           GoRoute(path: '/admin/assistant', name: 'assistant', builder: (context, state) => const AiAssistantPage()),
           GoRoute(path: '/admin/leaves', name: 'leaves', builder: (context, state) => const AdminLeaveRequestsPage()),
           GoRoute(path: '/admin/swaps', name: 'swaps', builder: (context, state) => const AdminSwapRequestsPage()),
@@ -167,6 +169,7 @@ class AdminDashboardShell extends ConsumerWidget {
       {'icon': Icons.schedule_outlined, 'label': l10n.navShifts, 'route': '/admin/shifts'},
       {'icon': Icons.badge_outlined, 'label': l10n.navStaffing, 'route': '/admin/staffing'},
       {'icon': Icons.calendar_today_outlined, 'label': l10n.navSchedules, 'route': '/admin/schedules'},
+      {'icon': Icons.grid_view_outlined, 'label': l10n.smartBuilderNav, 'route': '/admin/builder'},
       {'icon': Icons.smart_toy_outlined, 'label': l10n.navAiAssistant, 'route': '/admin/assistant'},
       {'icon': Icons.event_available_outlined, 'label': l10n.navLeaves, 'route': '/admin/leaves'},
       {'icon': Icons.swap_horiz_outlined, 'label': l10n.navSwaps, 'route': '/admin/swaps'},

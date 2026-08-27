@@ -131,15 +131,6 @@ class EmployeeAccountService {
   }
 }
 
-  void dispose() {
-    final app = _provisioningApp;
-    _provisioningApp = null;
-    if (app != null) {
-      app.delete();
-    }
-  }
-}
-
 final employeeAccountServiceProvider = Provider<EmployeeAccountService>((ref) {
   return EmployeeAccountService(
       firestore: ref.watch(firebaseFirestoreProvider));
