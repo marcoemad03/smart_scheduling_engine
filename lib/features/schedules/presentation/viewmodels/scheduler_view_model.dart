@@ -867,4 +867,146 @@ class SchedulerViewModel extends StateNotifier<SchedulerState> {
         state.weekStart.add(Duration(days: 7 * direction));
     loadWeek(newStart);
   }
+
+  // ---- Employee eligibility helpers for the Builder UI ----
+
+  String getShiftGroupLabel(ShiftTemplateEntity template) {
+    if (template.isNightShift) return 'Night';
+    if (template.startMinute < 720) return 'Morning';
+    if (template.startMinute < 1080) return 'Evening';
+    return 'Night';
+  }
+
+  double getEmployeeWeeklyHours(String employeeId) {
+    if (state.schedule == null) return 0;
+    return state.schedule!.getWeeklyHoursForEmployee(employeeId);
+  }
+
+  List<ScheduleAssignment> getEmployeeAssignmentsForDay(
+      String employeeId, DateTime day) {
+    if (state.schedule == null) return const [];
+    return state.schedule!.assignments.where((a) {
+      if (a.employeeId != employeeId) return false;
+      return a.scheduledDate.year == day.year &&
+          a.scheduledDate.month == day.month &&
+          a.scheduledDate.day == day.day;
+    }).toList();
+  }
+
+  LeaveRequest? getLeaveRequestForEmployeeOnDay(
+      String employeeId, DateTime day) {
+    for (final leave in state.leaves) {
+      if (leave.employeeId != employeeId) continue;
+      if (leave.status != LeaveStatus.approved &&
+          leave.status != LeaveStatus.pending) continue;
+      final leaveStart = DateTime(
+          leave.startDateTime.year, leave.startDateTime.month,
+          leave.startDateTime.day);
+      final leaveEnd = DateTime(
+          leave.endDateTime.year, leave.endDateTime.month,
+          leave.endDateTime.day);
+      final target = DateTime(day.year, day.month, day.day);
+      if (target.isAfter(leaveStart.subtract(const Duration(days: 1))) &&
+          target.isBefore(leaveEnd.add(const Duration(days: 1)))) {
+        return leave;
+      }
+    }
+    return null;
+  }
+
+  bool isEmployeeAvailable(String employeeId, DateTime start, DateTime end) {
+    for (final block in state.availabilities) {
+      if (block.employeeId != employeeId || block.isAvailable) continue;
+      if (start.isBefore(block.endDateTime) &&
+          block.startDateTime.isBefore(end)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool hasShiftConflict(String employeeId, DateTime start, DateTime end,
+      {String? excludeAssignmentId}) {
+    if (state.schedule == null) return false;
+    final mine = state.schedule!.assignments.where((a) {
+      if (a.employeeId != employeeId) return false;
+      if (excludeAssignmentId != null && a.id == excludeAssignmentId) return false;
+      return start.isBefore(a.endDateTime) && a.startDateTime.isBefore(end);
+    }).toList();
+    return mine.isNotEmpty;
+  }
+
+  bool isEmployeeAllowedInArea(String employeeId, String areaId) {
+    final employee = state.employees
+        .where((e) => e.id == employeeId)
+        .firstOrNull;
+    if (employee == null) return false;
+    return employee.isAllowedInArea(areaId);
+  }
+
+  /// Returns a map of employeeId -> list of reasons why they are unsuitable
+  /// for the given slot.
+  Map<String, List<String>> getUnsuitableReasons(
+      String areaId, DateTime day, ShiftTemplateEntity template) {
+    final reasons = <String, List<String>>{};
+    final start = DateTime(day.year, day.month, day.day,
+        template.startMinute ~/ 60, template.startMinute % 60);
+    final end = start.add(Duration(minutes: template.durationMinutes));
+    final settings = state.settings ??
+        SystemSettings(
+          settingsId: 'default',
+          maxWeeklyHours: 48,
+          minRestPeriodMinutes: 480,
+          workingHoursStart: 480,
+          workingHoursEnd: 1320,
+          allowCustomSchedules: true,
+          enableAttendanceTracking: false,
+          timezone: 'UTC',
+          weekStartDay: 1,
+          updatedAt: DateTime.now(),
+          updatedBy: currentUserId,
+        );
+
+    for (final e in state.employees) {
+      final r = <String>[];
+
+      // Already assigned this day.
+      if (getEmployeeAssignmentsForDay(e.id, day).isNotEmpty) {
+        r.add('alreadyAssigned');
+      }
+
+      // Area permission.
+      if (!isEmployeeAllowedInArea(e.id, areaId)) {
+        r.add('notAllowed');
+      }
+
+      // Leave.
+      final leave = getLeaveRequestForEmployeeOnDay(e.id, day);
+      if (leave != null) {
+        r.add('leave');
+      }
+
+      // Availability.
+      if (!isEmployeeAvailable(e.id, start, end)) {
+        r.add('unavailable');
+      }
+
+      // Shift conflict.
+      if (hasShiftConflict(e.id, start, end)) {
+        r.add('conflict');
+      }
+
+      // Overloaded.
+      final hours = getEmployeeWeeklyHours(e.id);
+      final limit = e.maxWeeklyHours > 0 ? e.maxWeeklyHours : settings.maxWeeklyHours;
+      if (hours >= limit - 0.01) {
+        r.add('overloaded');
+      }
+
+      if (r.isNotEmpty) {
+        reasons[e.id] = r;
+      }
+    }
+    return reasons;
+  }
 }

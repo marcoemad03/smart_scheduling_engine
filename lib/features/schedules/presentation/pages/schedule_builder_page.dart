@@ -7,7 +7,6 @@ import 'package:reception_workforce_scheduler/core/utils/date_time_utils.dart';
 import 'package:reception_workforce_scheduler/core/utils/directional_icons.dart';
 import 'package:reception_workforce_scheduler/features/employees/domain/entities/employee.dart';
 import 'package:reception_workforce_scheduler/features/schedules/domain/entities/schedule_entities.dart';
-import 'package:reception_workforce_scheduler/features/schedules/domain/services/schedule_generator.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/dialogs/generation_report_dialog.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/providers/scheduler_providers.dart';
 import 'package:reception_workforce_scheduler/features/schedules/presentation/viewmodels/scheduler_view_model.dart';
@@ -195,33 +194,6 @@ class ScheduleBuilderPage extends ConsumerWidget {
     return slots;
   }
 
-  // ------------------------------------------------------------- body
-
-  Widget _buildBody(
-    BuildContext context,
-    WidgetRef ref,
-    SchedulerState state,
-    List<_Slot> slots,
-    Map<String, double> weeklyHours,
-  ) {
-    final isDesktop = MediaQuery.of(context).size.width > 900;
-    if (isDesktop) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _employeePool(context, ref, state, weeklyHours),
-          const VerticalDivider(width: 1),
-          Expanded(child: _grid(context, ref, state, slots)),
-        ],
-      );
-    }
-    return Column(children: [
-      _employeePool(context, ref, state, weeklyHours, compact: true),
-      const Divider(height: 1),
-      Expanded(child: _grid(context, ref, state, slots)),
-    ]);
-  }
-
   // ------------------------------------------------------- employee pool
 
   Widget _employeePool(
@@ -310,22 +282,52 @@ class ScheduleBuilderPage extends ConsumerWidget {
     );
   }
 
-  // ------------------------------------------------------------- grid
+  // ------------------------------------------------------------- body
 
-  Widget _grid(
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    SchedulerState state,
+    List<_Slot> slots,
+    Map<String, double> weeklyHours,
+  ) {
+    final isDesktop = MediaQuery.of(context).size.width > 900;
+    if (isDesktop) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _employeePool(context, ref, state, weeklyHours),
+          const VerticalDivider(width: 1),
+          Expanded(child: _shiftGroupedGrid(context, ref, state, slots, weeklyHours)),
+        ],
+      );
+    }
+    return Column(children: [
+      _employeePool(context, ref, state, weeklyHours, compact: true),
+      const Divider(height: 1),
+      Expanded(child: _shiftGroupedGrid(context, ref, state, slots, weeklyHours)),
+    ]);
+  }
+
+  // ------------------------------------------------------- shift grouped grid
+
+  Widget _shiftGroupedGrid(
       BuildContext context, WidgetRef ref, SchedulerState state,
-      List<_Slot> slots) {
+      List<_Slot> slots, Map<String, double> weeklyHours) {
+    final l10n = AppLocalizations.of(context)!;
     final weekStart = DateTimeUtils.getStartOfWeek(state.weekStart);
     final areaNames = {for (final a in state.areas) a.areaId: a.name};
 
-    // Group slots into rows of (area, template).
-    final rowKeys = <String>[];
-    final byKey = <String, List<_Slot>>{};
+    // Group slots by shift group.
+    final shiftGroups = <String, List<_Slot>>{};
     for (final s in slots) {
-      final key = '${s.areaId}|${s.templateId}';
-      byKey.putIfAbsent(key, () => []).add(s);
-      if (!rowKeys.contains(key)) rowKeys.add(key);
+      final group = ref.read(schedulerViewModelProvider.notifier).getShiftGroupLabel(s.template);
+      shiftGroups.putIfAbsent(group, () => []).add(s);
     }
+
+    // Stable order: Morning, Evening, Night.
+    const groupOrder = ['Morning', 'Evening', 'Night'];
+    final orderedGroups = groupOrder.where(shiftGroups.containsKey).toList();
 
     return SingleChildScrollView(
       scrollDirection: Axis.vertical,
@@ -353,7 +355,7 @@ class ScheduleBuilderPage extends ConsumerWidget {
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.copy, size: 14),
-                          tooltip: AppLocalizations.of(context)!.copyDay,
+                          tooltip: l10n.copyDay,
                           onPressed: () => ref
                               .read(schedulerViewModelProvider.notifier)
                               .copyDay(
@@ -367,50 +369,172 @@ class ScheduleBuilderPage extends ConsumerWidget {
                   ),
                 ),
             ]),
-            // One row per Area+Shift slot type.
-            for (final key in rowKeys)
-              Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                SizedBox(
-                  width: 190,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                              areaNames[byKey[key]!.first.areaId] ??
-                                  byKey[key]!.first.areaId,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12)),
-                          Text(
-                              '${byKey[key]!.first.template.name} '
-                              '${_windowLabel(byKey[key]!.first.template)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.grey)),
-                        ]),
-                  ),
-                ),
-                for (var d = 0; d < 7; d++)
-                  _slotCell(
-                    context,
-                    ref,
-                    state,
-                    byKey[key]!.firstWhere(
-                      (s) => _sameDay(
-                          s.day, weekStart.add(Duration(days: d))),
-                      orElse: () => byKey[key]!.first,
-                      ),
-                    exists: byKey[key]!
-                        .any((s) => _sameDay(
-                            s.day, weekStart.add(Duration(days: d)))),
-                  ),
-              ]),
+            // One section per shift group.
+            for (final group in orderedGroups) ...[
+              _shiftGroupHeader(context, group, l10n),
+              for (final slot in shiftGroups[group]!)
+                _areaDayRow(context, ref, state, slot, weeklyHours, areaNames, l10n),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shiftGroupHeader(BuildContext context, String group, AppLocalizations l10n) {
+    Color headerColor;
+    switch (group) {
+      case 'Morning':
+        headerColor = Colors.orange.shade700;
+        break;
+      case 'Evening':
+        headerColor = Colors.indigo.shade700;
+        break;
+      case 'Night':
+        headerColor = Colors.deepPurple.shade700;
+        break;
+      default:
+        headerColor = Colors.grey.shade700;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: headerColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: headerColor.withOpacity(0.4)),
+      ),
+      child: Text(
+        group == 'Morning' ? l10n.morningShift :
+        group == 'Evening' ? l10n.eveningShift :
+        l10n.nightShift,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: headerColor,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------- area day row
+
+  Widget _areaDayRow(
+      BuildContext context, WidgetRef ref, SchedulerState state,
+      _Slot slot, Map<String, double> weeklyHours,
+      Map<String, String> areaNames, AppLocalizations l10n) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 190,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                      areaNames[slot.areaId] ?? slot.areaId,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12)),
+                  Text(
+                      '${slot.template.name} '
+                      '${_windowLabel(slot.template)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 10, color: Colors.grey)),
+                ]),
+          ),
+        ),
+        for (var d = 0; d < 7; d++)
+          _areaDayCell(
+            context,
+            ref,
+            state,
+            slot,
+            weeklyHours,
+            l10n,
+            day: DateTimeUtils.getStartOfWeek(state.weekStart).add(Duration(days: d)),
+          ),
+      ],
+    );
+  }
+
+  // ----------------------------------------------------------- area day cell
+
+  Widget _areaDayCell(
+      BuildContext context, WidgetRef ref, SchedulerState state,
+      _Slot slot, Map<String, double> weeklyHours, AppLocalizations l10n, {
+      required DateTime day,
+  }) {
+    final daySlot = slot.assignments.where((a) =>
+        a.areaId == slot.areaId &&
+        a.scheduledDate.year == day.year &&
+        a.scheduledDate.month == day.month &&
+        a.scheduledDate.day == day.day &&
+        (a.shiftTemplateId == slot.templateId || _matchesTemplateWindow(a, slot))
+    ).toList();
+
+    final assigned = daySlot.length;
+    final hasConflict = daySlot.any((a) =>
+        (state.conflictsByAssignment[a.id] ?? const []).isNotEmpty);
+    final color = hasConflict
+        ? Colors.deepOrange
+        : assigned < slot.required
+            ? Colors.red
+            : assigned > slot.required
+                ? Colors.amber.shade700
+                : Colors.green;
+
+    return GestureDetector(
+      onTap: () => _showEmployeePicker(context, ref, state, slot, day, weeklyHours, l10n),
+      child: Container(
+        width: 230,
+        height: 74,
+        margin: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          border: Border.all(color: color, width: 1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(_statusIcon(hasConflict, assigned, slot.required),
+                  size: 13, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  l10n.requiredAssignedLabel(
+                      '${slot.required}', '$assigned'),
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: color),
+                ),
+              ),
+              Icon(Icons.arrow_drop_down, size: 16, color: Colors.grey.shade600),
+            ]),
+            Expanded(
+              child: Wrap(
+                spacing: 3,
+                runSpacing: 2,
+                children: [
+                  for (final a in daySlot)
+                    _assignmentChip(context, ref, state, a, hasConflict),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -423,92 +547,6 @@ class ScheduleBuilderPage extends ConsumerWidget {
     return '${f(t.startMinute)} → ${f(t.startMinute + t.durationMinutes)}';
   }
 
-  // ------------------------------------------------------------ slot cell
-
-  Widget _slotCell(
-    BuildContext context,
-    WidgetRef ref,
-    SchedulerState state,
-    _Slot slot, {
-    required bool exists,
-  }) {
-    if (!exists) {
-      return const SizedBox(
-          width: 230, height: 74, child: SizedBox.shrink());
-    }
-    final l10n = AppLocalizations.of(context)!;
-    final assigned = slot.assignments.length;
-    final hasConflict = slot.assignments.any((a) =>
-        (state.conflictsByAssignment[a.id] ?? const []).isNotEmpty);
-    final color = hasConflict
-        ? Colors.deepOrange
-        : assigned < slot.required
-            ? Colors.red
-            : assigned > slot.required
-                ? Colors.amber.shade700
-                : Colors.green;
-
-    return DragTarget<String>(
-      onWillAccept: (data) => data != null,
-      onAccept: (employeeId) =>
-          _assignEmployee(context, ref, state, slot, employeeId),
-      builder: (context, candidate, _) => DragTarget<ScheduleAssignment>(
-        onWillAccept: (data) =>
-            data != null &&
-            (data.areaId != slot.areaId ||
-                data.shiftTemplateId != slot.templateId ||
-                !_sameDay(data.scheduledDate, slot.day)),
-        onAccept: (assignment) => _moveAssignment(context, ref, slot, assignment),
-        builder: (context, candidateAssignments, _) => Container(
-          width: 230,
-          height: 74,
-          margin: const EdgeInsets.all(3),
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: color.withOpacity(candidate.isNotEmpty ? 0.22 : 0.08),
-            border: Border.all(color: color, width: candidate.isNotEmpty ? 2 : 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Icon(_statusIcon(hasConflict, assigned, slot.required),
-                    size: 13, color: color),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    l10n.requiredAssignedLabel(
-                        '${slot.required}', '$assigned'),
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: color),
-                  ),
-                ),
-                InkWell(
-                  onTap: () => _showSuggestions(context, ref, state, slot),
-                  child: Icon(Icons.auto_awesome,
-                      size: 14, color: Colors.deepPurple.shade300),
-                ),
-              ]),
-              Expanded(
-                child: Wrap(
-                  spacing: 3,
-                  runSpacing: 2,
-                  children: [
-                    for (final a in slot.assignments)
-                      _assignmentChip(context, ref, state, a, hasConflict),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   IconData _statusIcon(bool conflict, int assigned, int required) {
     if (conflict) return Icons.warning_amber_rounded;
     if (assigned < required) return Icons.error_outline;
@@ -518,36 +556,240 @@ class ScheduleBuilderPage extends ConsumerWidget {
 
   Widget _assignmentChip(BuildContext context, WidgetRef ref,
       SchedulerState state, ScheduleAssignment a, bool hasConflict) {
-    final employee = state.employees.where((e) => e.id == a.employeeId).firstOrNull;
+    final employee = state.employees.where((e) => e.id == a.employeeId).toList();
+    final emp = employee.isNotEmpty ? employee.first : null;
     final conflicts = state.conflictsByAssignment[a.id] ?? const [];
-    return Draggable<ScheduleAssignment>(
-      data: a,
-      feedback: Chip(
-        label: Text(employee?.fullName ?? a.employeeId.substring(0, 8)),
-      ),
-      child: InkWell(
-        onTap: () => _assignmentMenu(context, ref, a),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: hasConflict ? Colors.deepOrange.withOpacity(0.15) : null,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: hasConflict ? Colors.deepOrange : Colors.grey),
+    return InkWell(
+      onTap: () => _assignmentMenu(context, ref, a),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: hasConflict ? Colors.deepOrange.withOpacity(0.15) : null,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: hasConflict ? Colors.deepOrange : Colors.grey),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (conflicts.isNotEmpty) ...[
+            const Icon(Icons.warning_amber_rounded,
+                size: 11, color: Colors.deepOrange),
+            const SizedBox(width: 2),
+          ],
+          Text(
+            emp?.fullName.split(' ').first ?? a.employeeId.substring(0, 6),
+            style: const TextStyle(fontSize: 11),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (conflicts.isNotEmpty) ...[
-              const Icon(Icons.warning_amber_rounded,
-                  size: 11, color: Colors.deepOrange),
-              const SizedBox(width: 2),
-            ],
-            Text(
-              employee?.fullName.split(' ').first ?? a.employeeId.substring(0, 6),
-              style: const TextStyle(fontSize: 11),
+        ]),
+      ),
+    );
+  }
+
+  bool _matchesTemplateWindow(ScheduleAssignment a, _Slot slot) {
+    final overlapStart =
+        a.startDateTime.isAfter(slot.start) ? a.startDateTime : slot.start;
+    final overlapEnd = a.endDateTime.isBefore(slot.end) ? a.endDateTime : slot.end;
+    return overlapEnd.difference(overlapStart).inMinutes >= 30;
+  }
+
+  // -------------------------------------------------------- employee picker
+
+  void _showEmployeePicker(BuildContext context, WidgetRef ref, SchedulerState state,
+      _Slot slot, DateTime day, Map<String, double> weeklyHours, AppLocalizations l10n) {
+    final viewModel = ref.read(schedulerViewModelProvider.notifier);
+    final unsuitable = viewModel.getUnsuitableReasons(slot.areaId, day, slot.template);
+    final assignedIds = slot.assignments.map((a) => a.employeeId).toSet();
+    final areaName = state.areas.where((a) => a.areaId == slot.areaId).toList();
+    final area = areaName.isNotEmpty ? areaName.first.name : slot.areaId;
+
+    final eligible = state.employees.where((e) {
+      if (assignedIds.contains(e.id)) return false;
+      return !unsuitable.containsKey(e.id);
+    }).toList()
+      ..sort((a, b) => (weeklyHours[a.id] ?? 0).compareTo(weeklyHours[b.id] ?? 0));
+
+    final unsuitableEmployees = state.employees.where((e) {
+      if (assignedIds.contains(e.id)) return false;
+      return unsuitable.containsKey(e.id);
+    }).toList()
+      ..sort((a, b) => (weeklyHours[a.id] ?? 0).compareTo(weeklyHours[b.id] ?? 0));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Expanded(
+                child: Text(
+                  '$area • ${slot.template.name}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(Icons.close),
+              ),
+            ]),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                if (eligible.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(l10n.suitableEmployees,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  ),
+                  for (final e in eligible)
+                    _employeePickerTile(context, ref, state, e, slot, day, weeklyHours, l10n, viewModel, unsuitable, assignedIds),
+                ],
+                if (unsuitableEmployees.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Text(l10n.unsuitableEmployees,
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600)),
+                  ),
+                  for (final e in unsuitableEmployees)
+                    _employeePickerTile(context, ref, state, e, slot, day, weeklyHours, l10n, viewModel, unsuitable, assignedIds, isUnsuitable: true),
+                ],
+                if (eligible.isEmpty && unsuitableEmployees.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(l10n.noSuggestions, textAlign: TextAlign.center),
+                  ),
+              ],
             ),
-          ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _employeePickerTile(
+      BuildContext context, WidgetRef ref, SchedulerState state,
+      Employee e, _Slot slot, DateTime day, Map<String, double> weeklyHours,
+      AppLocalizations l10n, SchedulerViewModel viewModel,
+      Map<String, List<String>> unsuitable, Set<String> assignedIds,
+      {bool isUnsuitable = false}) {
+    final hours = weeklyHours[e.id] ?? 0;
+    final settings = state.settings ?? _defaultSettings();
+    final limit = e.maxWeeklyHours > 0 ? e.maxWeeklyHours : settings.maxWeeklyHours;
+    final allowed = viewModel.isEmployeeAllowedInArea(e.id, slot.areaId);
+    final leave = viewModel.getLeaveRequestForEmployeeOnDay(e.id, day);
+    final available = viewModel.isEmployeeAvailable(e.id, slot.start, slot.end);
+    final conflict = viewModel.hasShiftConflict(e.id, slot.start, slot.end);
+    final reasons = unsuitable[e.id] ?? [];
+
+    ScheduleAssignment? existingAssignment;
+    for (final a in viewModel.getEmployeeAssignmentsForDay(e.id, day)) {
+      if (a.areaId != slot.areaId) {
+        existingAssignment = a;
+        break;
+      }
+    }
+    final alreadyAssignedElsewhere = existingAssignment != null;
+
+    String? assignedShiftLabel;
+    if (alreadyAssignedElsewhere) {
+      final other = existingAssignment;
+      final otherTemplates = state.shiftTemplates
+          .where((t) => t.templateId == other.shiftTemplateId)
+          .toList();
+      final otherAreas = state.areas
+          .where((a) => a.areaId == other.areaId)
+          .toList();
+      assignedShiftLabel = '${otherTemplates.isNotEmpty ? otherTemplates.first.name : l10n.selectEmployee} — ${otherAreas.isNotEmpty ? otherAreas.first.name : other.areaId}';
+    }
+
+    return ListTile(
+      dense: true,
+      enabled: !isUnsuitable,
+      leading: CircleAvatar(
+        radius: 14,
+        backgroundColor: isUnsuitable ? Colors.grey.shade300 : Colors.green.shade100,
+        child: Icon(
+          isUnsuitable ? Icons.block : (allowed ? Icons.check : Icons.warning_amber),
+          size: 14,
+          color: isUnsuitable ? Colors.grey : (allowed ? Colors.green : Colors.orange),
         ),
       ),
+      title: Text(
+        e.fullName,
+        style: TextStyle(
+          fontSize: 13,
+          color: isUnsuitable ? Colors.grey : null,
+          decoration: alreadyAssignedElsewhere ? TextDecoration.lineThrough : null,
+        ),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${l10n.weeklyHours}: ${hours.toStringAsFixed(1)}h / ${limit.toStringAsFixed(0)}h',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+          if (leave != null)
+            Row(children: [
+              const Icon(Icons.warning_amber, size: 12, color: Colors.orange),
+              const SizedBox(width: 4),
+              Text(l10n.leaveRequested, style: const TextStyle(fontSize: 11, color: Colors.orange)),
+            ]),
+          if (!available)
+            Text(l10n.reasonUnavailable, style: const TextStyle(fontSize: 11, color: Colors.red)),
+          if (conflict)
+            Text(l10n.reasonConflict, style: const TextStyle(fontSize: 11, color: Colors.red)),
+          if (!allowed)
+            Text(l10n.reasonNotAllowed, style: const TextStyle(fontSize: 11, color: Colors.orange)),
+          if (alreadyAssignedElsewhere && assignedShiftLabel != null)
+            Text(
+              l10n.alreadyAssigned(assignedShiftLabel.split(' — ')[0], assignedShiftLabel.split(' — ')[1]),
+              style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontStyle: FontStyle.italic),
+            ),
+          if (isUnsuitable)
+            Text(
+              reasons.map((r) {
+                switch (r) {
+                  case 'overloaded': return l10n.reasonOverloaded;
+                  case 'notAllowed': return l10n.reasonNotAllowed;
+                  case 'conflict': return l10n.reasonConflict;
+                  case 'leave': return l10n.leaveRequested;
+                  case 'unavailable': return l10n.reasonUnavailable;
+                  default: return r;
+                }
+              }).join(', '),
+              style: const TextStyle(fontSize: 11, color: Colors.red),
+            ),
+        ],
+      ),
+      trailing: assignedIds.contains(e.id)
+          ? IconButton(
+              icon: const Icon(Icons.remove_circle, color: Colors.red, size: 20),
+              onPressed: () {
+                Navigator.pop(context);
+                ScheduleAssignment? existing;
+                for (final a in slot.assignments) {
+                  if (a.employeeId == e.id) {
+                    existing = a;
+                    break;
+                  }
+                }
+                if (existing != null) {
+                  ref.read(schedulerViewModelProvider.notifier).deleteAssignment(existing.id);
+                }
+              },
+            )
+          : TextButton(
+              onPressed: isUnsuitable ? null : () {
+                Navigator.pop(context);
+                _assignEmployee(context, ref, state, slot, e.id);
+              },
+              child: Text(l10n.add),
+            ),
     );
   }
 
@@ -555,8 +797,9 @@ class ScheduleBuilderPage extends ConsumerWidget {
 
   void _assignEmployee(BuildContext context, WidgetRef ref, SchedulerState state,
       _Slot slot, String employeeId) {
-    final employee = state.employees.where((e) => e.id == employeeId).firstOrNull;
-    if (employee == null) return;
+    final employees = state.employees.where((e) => e.id == employeeId).toList();
+    if (employees.isEmpty) return;
+    final employee = employees.first;
     if (!employee.isAllowedInArea(slot.areaId)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(AppLocalizations.of(context)!
@@ -572,22 +815,6 @@ class ScheduleBuilderPage extends ConsumerWidget {
           startTime: TimeOfDay.fromDateTime(slot.start),
           endTime: TimeOfDay.fromDateTime(slot.end),
           shiftTemplateId: slot.templateId,
-        );
-  }
-
-  void _moveAssignment(
-      BuildContext context, WidgetRef ref, _Slot slot, ScheduleAssignment a) {
-    ref.read(schedulerViewModelProvider.notifier).updateAssignment(
-          a.copyWith(
-            areaId: slot.areaId,
-            shiftTemplateId: slot.templateId,
-            scheduledDate:
-                DateTime(slot.day.year, slot.day.month, slot.day.day),
-            startDateTime: slot.start,
-            endDateTime: slot.end,
-            updatedBy:
-                ref.read(schedulerViewModelProvider.notifier).currentUserId,
-          ),
         );
   }
 
@@ -614,78 +841,6 @@ class ScheduleBuilderPage extends ConsumerWidget {
           },
         ),
       ]),
-    );
-  }
-
-  // ------------------------------------------------------- suggestions
-
-  void _showSuggestions(BuildContext context, WidgetRef ref,
-      SchedulerState state, _Slot slot) {
-    final l10n = AppLocalizations.of(context)!;
-    final generator = ScheduleGenerator(
-      settings: state.settings ?? _defaultSettings(),
-      employees: state.employees,
-      areas: state.areas,
-      requirements: state.staffingRequirements,
-      shiftTemplates: state.shiftTemplates,
-      availabilities: state.availabilities,
-      leaves: state.leaves,
-      fixedAssignments: state.schedule?.assignments ?? const [],
-      weekStart: state.weekStart,
-      createdBy: ref.read(schedulerViewModelProvider.notifier).currentUserId,
-    );
-
-    final candidates = <(Employee, double)>[];
-    for (final e in state.employees) {
-      final score = generator.scoreCandidateForWindow(
-          e, slot.start, slot.end, slot.areaId,
-          state.schedule?.assignments ?? const []);
-      if (score != null) candidates.add((e, score));
-    }
-    candidates.sort((a, b) => a.$2.compareTo(b.$2));
-
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SizedBox(
-        height: 380,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(l10n.suggestEmployees,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: candidates.isEmpty
-                ? Center(child: Text(l10n.noSuggestions))
-                : ListView.builder(
-                    itemCount: candidates.length,
-                    itemBuilder: (context, i) {
-                      final (e, score) = candidates[i];
-                      final allowed = e.isAllowedInArea(slot.areaId);
-                      return ListTile(
-                        dense: true,
-                        leading: Icon(
-                          allowed ? Icons.check_circle : Icons.warning_amber,
-                          color: allowed ? Colors.green : Colors.orange,
-                          size: 20,
-                        ),
-                        title: Text(e.fullName, style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(
-                            '${(generator.scoreCandidateForWindow(e, slot.start, slot.end, slot.areaId, state.schedule?.assignments ?? const []) ?? 0).toStringAsFixed(2)} • ${e.preferredAreas.isEmpty ? l10n.allAreas : ''}',
-                            style: const TextStyle(fontSize: 11)),
-                        trailing: TextButton(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                            _assignEmployee(context, ref, state, slot, e.id);
-                          },
-                          child: Text(l10n.add),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ]),
-      ),
     );
   }
 

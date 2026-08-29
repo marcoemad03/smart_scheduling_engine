@@ -538,6 +538,24 @@
 
   "areaNotAllowedSuffix": "not allowed for this employee",
   "areaNotAllowedWarning": "{name} is not in this employee's allowed areas. The conflict detector will flag it and you can override explicitly.",
-  "@areaNotAllowedWarning": { "placeholders": { "name": { "type": "String" } } }
+  "@areaNotAllowedWarning": { "placeholders": { "name": { "type": "String" } } },
+
+  "leaveRequested": "Leave requested",
+  "alreadyAssigned": "Already assigned to {shift} — {area}",
+  "@alreadyAssigned": { "placeholders": { "shift": { "type": "String" }, "area": { "type": "String" } } },
+  "selectEmployee": "Select employee...",
+  "removeEmployee": "Remove",
+  "suitableEmployees": "Suitable employees",
+  "unsuitableEmployees": "Unsuitable employees",
+  "reasonOverloaded": "Overloaded",
+  "reasonNotAllowed": "Not allowed in area",
+  "reasonConflict": "Shift conflict",
+  "reasonLeave": "On leave",
+  "reasonUnavailable": "Unavailable",
+  "weeklyHours": "Weekly hours",
+  "allowedInArea": "Allowed in area",
+  "notAllowedInArea": "Not allowed in area",
+  "availabilityStatus": "Availability",
+  "leaveStatus": "Leave status"
 }
 

@@ -538,5 +538,23 @@
 
   "areaNotAllowedSuffix": "غير مسموحة لهذا الموظف",
   "areaNotAllowedWarning": "المنطقة {name} ليست ضمن المناطق المسموحة لهذا الموظف. سيكتشفها محرك التحقق ويمكنك تجاوز ذلك صراحة.",
-  "@areaNotAllowedWarning": { "placeholders": { "name": { "type": "String" } } }
+  "@areaNotAllowedWarning": { "placeholders": { "name": { "type": "String" } } },
+
+  "leaveRequested": "تم طلب إجازة",
+  "alreadyAssigned": "مُعين بالفعل إلى {shift} — {area}",
+  "@alreadyAssigned": { "placeholders": { "shift": { "type": "String" }, "area": { "type": "String" } } },
+  "selectEmployee": "اختر موظف...",
+  "removeEmployee": "إزالة",
+  "suitableEmployees": "موظفون مناسبون",
+  "unsuitableEmployees": "موظفون غير مناسبون",
+  "reasonOverloaded": "حمول زائد",
+  "reasonNotAllowed": "غير مسموح في المنطقة",
+  "reasonConflict": "تعارض وردية",
+  "reasonLeave": "في إجازة",
+  "reasonUnavailable": "غير متاح",
+  "weeklyHours": "ساعات أسبوعية",
+  "allowedInArea": "مسموح في المنطقة",
+  "notAllowedInArea": "غير مسموح في المنطقة",
+  "availabilityStatus": "حالة التوفر",
+  "leaveStatus": "حالة الإجازة"
 }
